@@ -68,6 +68,8 @@
                     <xmlOutput>true</xmlOutput>
                     <outputDirectory>${project.build.directory}</outputDirectory>
                     <outputFile>spotbugs.xml</outputFile>
+                    <htmlOutput>true</htmlOutput>
+                    <htmlOutputFile>spotbugs.html</htmlOutputFile>
                 </configuration>
                 <executions>
                     <execution>
@@ -80,5 +82,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>
