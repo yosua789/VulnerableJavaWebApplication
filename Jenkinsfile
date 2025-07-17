@@ -3,10 +3,12 @@ pipeline {
     stages {
         stage('Maven Compile and SAST Spotbugs') {
             agent {
-                label 'maven'
+                docker {
+                    image 'maven:3.9.6-eclipse-temurin-17'
+                }
             }
             steps {
-                sh 'mvn compile spotbugs:spotbugs'
+                sh 'mvn clean compile spotbugs:spotbugs'
                 archiveArtifacts artifacts: 'target/spotbugs.html'
                 archiveArtifacts artifacts: 'target/spotbugs.xml'
             }
@@ -16,7 +18,7 @@ pipeline {
             agent {
                 docker {
                     image 'trufflesecurity/trufflehog:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock --entrypoint='
+                    args '--entrypoint='
                 }
             }
             steps {
@@ -30,14 +32,12 @@ pipeline {
             agent {
                 docker {
                     image 'owasp/dependency-check:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock --entrypoint='
+                    args '--entrypoint='
                 }
             }
             steps {
                 sh '/usr/share/dependency-check/bin/dependency-check.sh --scan . --project "VulnerableJavaWebApplication" --format ALL'
-                archiveArtifacts artifacts: 'dependency-check-report.html'
-                archiveArtifacts artifacts: 'dependency-check-report.json'
-                archiveArtifacts artifacts: 'dependency-check-report.xml'
+                archiveArtifacts artifacts: 'dependency-check-report.*'
             }
         }
 
@@ -54,4 +54,3 @@ pipeline {
         }
     }
 }
-
