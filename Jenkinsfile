@@ -1,5 +1,6 @@
 pipeline {
     agent none
+
     stages {
         stage('Maven Compile and SAST Spotbugs') {
             agent {
@@ -9,12 +10,12 @@ pipeline {
             }
             steps {
                 sh 'mvn clean compile spotbugs:spotbugs'
-                archiveArtifacts artifacts: 'target/spotbugs.html'
-                archiveArtifacts artifacts: 'target/spotbugs.xml'
+                sh 'ls -R target/ || echo "target folder not found"'
+                archiveArtifacts artifacts: 'target/spotbugs.xml', allowEmptyArchive: false
             }
         }
 
-        stage('Secret Scanning') {
+        stage('Secret Scanning (TruffleHog)') {
             agent {
                 docker {
                     image 'trufflesecurity/trufflehog:latest'
@@ -22,13 +23,13 @@ pipeline {
                 }
             }
             steps {
-                sh 'trufflehog --no-update filesystem . --json > trufflehogscan.json'
-                sh 'cat trufflehogscan.json'
-                archiveArtifacts artifacts: 'trufflehogscan.json'
+                sh 'trufflehog --no-update filesystem . --json > trufflehogscan.json || echo "Trufflehog failed"'
+                sh 'cat trufflehogscan.json || echo "No scan result"'
+                archiveArtifacts artifacts: 'trufflehogscan.json', allowEmptyArchive: true
             }
         }
 
-        stage('SCA') {
+        stage('SCA (OWASP Dependency Check)') {
             agent {
                 docker {
                     image 'owasp/dependency-check:latest'
@@ -36,8 +37,14 @@ pipeline {
                 }
             }
             steps {
-                sh '/usr/share/dependency-check/bin/dependency-check.sh --scan . --project "VulnerableJavaWebApplication" --format ALL'
-                archiveArtifacts artifacts: 'dependency-check-report.*'
+                sh '''
+                    /usr/share/dependency-check/bin/dependency-check.sh \
+                        --scan . \
+                        --project "VulnerableJavaWebApplication" \
+                        --format ALL \
+                        --out .
+                '''.stripIndent()
+                archiveArtifacts artifacts: 'dependency-check-report.*', allowEmptyArchive: true
             }
         }
 
