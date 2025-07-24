@@ -11,18 +11,9 @@ pipeline {
             steps {
                 sh '''
                     mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed"
-                    ls -lh target/site/spotbugs.html || echo "HTML report not found"
+                    ls -lh target/spotbugs.xml || echo "XML report not found"
                 '''
                 archiveArtifacts artifacts: 'target/spotbugs.xml', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
-                publishHTML(target: [
-                    reportName: 'SpotBugs Report',
-                    reportDir: 'target/site',
-                    reportFiles: 'spotbugs.html',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: true
-                ])
             }
         }
 
@@ -70,9 +61,7 @@ pipeline {
                 }
             }
             steps {
-                sh '''
-                    docker build -t vulnerable-java-application:0.1 .
-                '''
+                sh 'docker build -t vulnerable-java-application:0.1 .'
             }
         }
 
@@ -87,6 +76,10 @@ pipeline {
                 sh '''
                     docker stop vulnerable-container || true
                     docker rm -f vulnerable-container || true
+                    while docker ps -a --format '{{.Names}}' | grep -w vulnerable-container; do
+                      echo "Waiting for container to be fully removed..."
+                      sleep 1
+                    done
                     docker run --rm --name vulnerable-container -d -p 8081:8080 vulnerable-java-application:0.1
                 '''
             }
