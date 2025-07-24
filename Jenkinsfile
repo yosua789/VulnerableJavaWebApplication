@@ -2,16 +2,27 @@ pipeline {
     agent none
 
     stages {
-        stage('Maven Compile + SAST (SpotBugs)') {
+        stage('Maven Compile + SAST (SpotBugs HTML)') {
             agent {
                 docker {
                     image 'maven:3.9.6-eclipse-temurin-17'
                 }
             }
             steps {
-                sh 'mvn clean compile spotbugs:spotbugs'
-                sh 'ls -R target/ || echo "target folder not found"'
+                sh '''
+                    mvn clean compile spotbugs:spotbugs spotbugs:report
+                    ls -R target/ || echo "target folder not found"
+                '''
                 archiveArtifacts artifacts: 'target/spotbugs.xml', allowEmptyArchive: false
+                archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
+                publishHTML(target: [
+                    reportName: 'SpotBugs Report',
+                    reportDir: 'target/site',
+                    reportFiles: 'spotbugs.html',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: true
+                ])
             }
         }
 
@@ -70,11 +81,8 @@ pipeline {
             }
             steps {
                 sh '''
-                    # Cleanup container & port jika sudah ada
                     docker stop vulnerable-container || true
                     docker rm vulnerable-container || true
-
-                    # Jalankan image pakai port 8081 (biar gak bentrok)
                     docker run --rm --name vulnerable-container -d -p 8081:8080 vulnerable-java-application:0.1
                 '''
             }
