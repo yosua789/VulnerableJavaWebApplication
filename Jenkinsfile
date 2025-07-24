@@ -10,10 +10,10 @@ pipeline {
             }
             steps {
                 sh '''
-                    mvn clean compile spotbugs:spotbugs spotbugs:report
-                    ls -R target/ || echo "target folder not found"
+                    mvn clean compile spotbugs:spotbugs spotbugs:report || echo "SpotBugs failed"
+                    ls -lh target/site/spotbugs.html || echo "HTML report not found"
                 '''
-                archiveArtifacts artifacts: 'target/spotbugs.xml', allowEmptyArchive: false
+                archiveArtifacts artifacts: 'target/spotbugs.xml', allowEmptyArchive: true
                 archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
                 publishHTML(target: [
                     reportName: 'SpotBugs Report',
@@ -34,8 +34,10 @@ pipeline {
                 }
             }
             steps {
-                sh 'trufflehog --no-update filesystem . --json > trufflehogscan.json || echo "Trufflehog failed"'
-                sh 'cat trufflehogscan.json || echo "No scan result"'
+                sh '''
+                    trufflehog --no-update filesystem . --json > trufflehogscan.json || echo "Trufflehog failed"
+                    cat trufflehogscan.json || echo "No secrets found"
+                '''
                 archiveArtifacts artifacts: 'trufflehogscan.json', allowEmptyArchive: true
             }
         }
@@ -55,7 +57,7 @@ pipeline {
                         --format ALL \
                         --out . \
                         --exclude node_modules --exclude target || echo "Dependency Check Failed"
-                '''.stripIndent()
+                '''
                 archiveArtifacts artifacts: 'dependency-check-report.*', allowEmptyArchive: true
             }
         }
@@ -68,7 +70,9 @@ pipeline {
                 }
             }
             steps {
-                sh 'docker build -t vulnerable-java-application:0.1 .'
+                sh '''
+                    docker build -t vulnerable-java-application:0.1 .
+                '''
             }
         }
 
