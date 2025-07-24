@@ -2,7 +2,7 @@ pipeline {
     agent none
 
     stages {
-        stage('Maven Compile and SAST Spotbugs') {
+        stage('Maven Compile + SAST (SpotBugs)') {
             agent {
                 docker {
                     image 'maven:3.9.6-eclipse-temurin-17'
@@ -29,7 +29,7 @@ pipeline {
             }
         }
 
-        stage('SCA (OWASP Dependency Check)') {
+        stage('SCA (OWASP Dependency-Check)') {
             agent {
                 docker {
                     image 'owasp/dependency-check:latest'
@@ -57,6 +57,18 @@ pipeline {
             }
             steps {
                 sh 'docker build -t vulnerable-java-application:0.1 .'
+            }
+        }
+
+        stage('Run Docker Image') {
+            agent {
+                docker {
+                    image 'docker:dind'
+                    args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                sh 'docker run -d -p 8080:8080 vulnerable-java-application:0.1'
             }
         }
     }
