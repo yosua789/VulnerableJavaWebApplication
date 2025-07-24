@@ -10,10 +10,9 @@ pipeline {
             }
             steps {
                 sh '''
-                    mvn clean compile spotbugs:spotbugs spotbugs:report || echo "SpotBugs failed"
-                    ls -lh target/site/spotbugs.html || echo "HTML report not found"
+                    mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed"
+                    ls -lh target/site || echo "No site folder"
                 '''
-                archiveArtifacts artifacts: 'target/spotbugs.xml', allowEmptyArchive: true
                 archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
                 publishHTML(target: [
                     reportName: 'SpotBugs Report',
