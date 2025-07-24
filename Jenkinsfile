@@ -70,7 +70,9 @@ pipeline {
                 }
             }
             steps {
-                sh 'docker build -t vulnerable-java-application:0.1 .'
+                sh '''
+                    docker build -t vulnerable-java-application:0.1 .
+                '''
             }
         }
 
@@ -83,13 +85,8 @@ pipeline {
             }
             steps {
                 sh '''
-                    docker ps -a | grep vulnerable-container && docker stop vulnerable-container || true
-
-                    while docker ps -a | grep vulnerable-container; do
-                        echo "Menunggu container dihapus..."
-                        sleep 1
-                    done
-
+                    docker stop vulnerable-container || true
+                    docker rm -f vulnerable-container || true
                     docker run --rm --name vulnerable-container -d -p 8081:8080 vulnerable-java-application:0.1
                 '''
             }
