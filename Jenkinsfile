@@ -69,7 +69,14 @@ pipeline {
                 }
             }
             steps {
-                sh 'docker run -d -p 8080:8080 vulnerable-java-application:0.1'
+                sh '''
+                    # Cleanup container & port jika sudah ada
+                    docker stop vulnerable-container || true
+                    docker rm vulnerable-container || true
+
+                    # Jalankan image pakai port 8081 (biar gak bentrok)
+                    docker run --rm --name vulnerable-container -d -p 8081:8080 vulnerable-java-application:0.1
+                '''
             }
         }
     }
