@@ -1,59 +1,54 @@
 pipeline {
-  agent {
-    docker {
-      image 'maven:3.9.6-eclipse-temurin-17'
-    }
-  }
+    agent any
 
-  environment {
-    SPOTBUGS_XML = 'target/spotbugsXml.xml'
-    SPOTBUGS_HTML = 'target/spotbugs.html'
-    SPOTBUGS_XSL = 'target/spotbugs.xsl'
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
-      }
+    tools {
+        maven 'Maven3'
+        jdk 'JDK17'
     }
 
-    stage('Maven Verify (Generate SpotBugs XML)') {
-      steps {
-        sh 'mvn clean verify'
-      }
+    environment {
+        MAVEN_OPTS = "-Dmaven.repo.local=.m2/repository"
     }
 
-    stage('Generate SpotBugs HTML') {
-      steps {
-        sh '''
-          apt-get update && apt-get install -y xsltproc
-          mkdir -p target
-          cp src/main/resources/spotbugs.xsl "$SPOTBUGS_XSL"
-          if [ -f "$SPOTBUGS_XML" ]; then
-            xsltproc "$SPOTBUGS_XSL" "$SPOTBUGS_XML" > "$SPOTBUGS_HTML"
-            echo "HTML report generated at $SPOTBUGS_HTML"
-          else
-            echo "No SpotBugs XML report found."
-          fi
-        '''
-      }
-    }
+    stages {
+        stage('Build and SpotBugs') {
+            steps {
+                sh 'mvn clean verify'
+            }
+        }
 
-    stage('Archive Reports') {
-      steps {
-        archiveArtifacts artifacts: 'target/spotbugs.html', onlyIfSuccessful: true
-      }
-    }
+        stage('Transform XML to HTML') {
+            steps {
+                sh '''
+                apt-get update && apt-get install -y xsltproc
 
-    stage('Publish HTML Report') {
-      steps {
-        publishHTML (target: [
-          reportDir: 'target',
-          reportFiles: 'spotbugs.html',
-          reportName: 'SpotBugs Report'
-        ])
-      }
+                mkdir -p target
+                cp src/main/resources/spotbugs.xsl target/
+
+                if [ -f target/spotbugsXml.xml ]; then
+                    xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
+                else
+                    echo "No SpotBugs XML report found."
+                    exit 1
+                fi
+                '''
+            }
+        }
+
+        stage('Archive Reports') {
+            steps {
+                archiveArtifacts artifacts: 'target/spotbugs.html', onlyIfSuccessful: true
+            }
+        }
+
+        stage('Publish HTML Report') {
+            steps {
+                publishHTML(target: [
+                    reportDir: 'target',
+                    reportFiles: 'spotbugs.html',
+                    reportName: 'SpotBugs Report'
+                ])
+            }
+        }
     }
-  }
 }
