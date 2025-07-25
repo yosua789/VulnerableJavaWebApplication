@@ -2,33 +2,37 @@ pipeline {
   agent {
     docker {
       image 'maven:3.9.6-eclipse-temurin-17'
-      args '-u root:root'
     }
   }
 
   environment {
-    REPORT_DIR = 'target'
-    SPOTBUGS_XML = "${env.REPORT_DIR}/spotbugsXml.xml"
-    SPOTBUGS_HTML = "${env.REPORT_DIR}/spotbugs.html"
-    SPOTBUGS_XSL = "${env.REPORT_DIR}/spotbugs.xsl"
+    SPOTBUGS_XML = 'target/spotbugsXml.xml'
+    SPOTBUGS_HTML = 'target/spotbugs.html'
+    SPOTBUGS_XSL = 'target/spotbugs.xsl'
   }
 
   stages {
-    stage('Build & SpotBugs') {
+    stage('Checkout') {
       steps {
-        sh 'mkdir -p src/main/resources'
-        sh 'curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o src/main/resources/spotbugs.xsl'
+        git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
+      }
+    }
+
+    stage('Maven Verify (Generate SpotBugs XML)') {
+      steps {
         sh 'mvn clean verify'
       }
     }
 
     stage('Generate SpotBugs HTML') {
       steps {
-        sh 'mkdir -p target'
-        sh 'cp src/main/resources/spotbugs.xsl $SPOTBUGS_XSL'
         sh '''
+          apt-get update && apt-get install -y xsltproc
+          mkdir -p target
+          cp src/main/resources/spotbugs.xsl "$SPOTBUGS_XSL"
           if [ -f "$SPOTBUGS_XML" ]; then
             xsltproc "$SPOTBUGS_XSL" "$SPOTBUGS_XML" > "$SPOTBUGS_HTML"
+            echo "HTML report generated at $SPOTBUGS_HTML"
           else
             echo "No SpotBugs XML report found."
           fi
@@ -44,10 +48,7 @@ pipeline {
 
     stage('Publish HTML Report') {
       steps {
-        publishHTML([
-          allowMissing: false,
-          alwaysLinkToLastBuild: true,
-          keepAll: true,
+        publishHTML (target: [
           reportDir: 'target',
           reportFiles: 'spotbugs.html',
           reportName: 'SpotBugs Report'
