@@ -18,6 +18,7 @@
   <properties>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
   <dependencies>
@@ -49,25 +50,28 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
-        <version>${parent.version}</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>repackage</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
 
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
         <version>4.7.3.2</version>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>spotbugs</goal>
+            </goals>
+          </execution>
+        </executions>
         <configuration>
-          <includeFilterFile>spotbugs-security-include.xml</includeFilterFile>
-          <excludeFilterFile>spotbugs-security-exclude.xml</excludeFilterFile>
           <xmlOutput>true</xmlOutput>
+          <xmlOutputDirectory>${project.build.directory}</xmlOutputDirectory>
+          <outputFile>${project.build.directory}/spotbugsXml.xml</outputFile>
+          <htmlOutput>false</htmlOutput>
           <failOnError>false</failOnError>
+          <effort>Max</effort>
+          <threshold>Low</threshold>
           <plugins>
             <plugin>
               <groupId>com.h3xstream.findsecbugs</groupId>
