@@ -59,6 +59,7 @@
           <execution>
             <phase>verify</phase>
             <goals>
+              <goal>spotbugs</goal>
               <goal>check</goal>
             </goals>
           </execution>
@@ -70,7 +71,6 @@
           <failOnError>false</failOnError>
           <effort>Max</effort>
           <threshold>Low</threshold>
-          <htmlOutput>true</htmlOutput>
           <plugins>
             <plugin>
               <groupId>com.h3xstream.findsecbugs</groupId>
@@ -79,6 +79,34 @@
             </plugin>
           </plugins>
         </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>xml-maven-plugin</artifactId>
+        <version>1.0</version>
+        <executions>
+          <execution>
+            <id>transform-spotbugs-xml</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>transform</goal>
+            </goals>
+            <configuration>
+              <transformationSets>
+                <transformationSet>
+                  <dir>${project.build.directory}</dir>
+                  <includes>
+                    <include>spotbugsXml.xml</include>
+                  </includes>
+                  <stylesheet>src/main/resources/spotbugs.xsl</stylesheet>
+                  <outputDir>${project.build.directory}/site</outputDir>
+                  <outputFileName>spotbugs.html</outputFileName>
+                </transformationSet>
+              </transformationSets>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
