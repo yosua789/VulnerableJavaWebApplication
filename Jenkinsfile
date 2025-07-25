@@ -1,101 +1,35 @@
-pipeline {
-    agent none
-
-    stages {
-        stage('Maven Compile + SAST (SpotBugs HTML)') {
-            agent {
-                docker {
-                    image 'maven:3.9.6-eclipse-temurin-17'
-                }
-            }
-            steps {
-                sh '''
-                    mkdir -p src/main/resources
-
-                    curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/spotbugs/etc/default.xsl \
-                        -o src/main/resources/spotbugs.xsl
-
-                    mvn clean verify || echo "Maven verify failed"
-
-                    mv target/site/spotbugsXml.html target/site/spotbugs.html || echo "Rename failed"
-
-                    ls -lh target/spotbugsXml.xml || echo "XML report not found"
-                    ls -lh target/site/spotbugs.html || echo "HTML report not found"
-                '''
-                archiveArtifacts artifacts: 'target/spotbugsXml.xml', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
-                publishHTML(target: [
-                    reportName: 'SpotBugs Report',
-                    reportDir: 'target/site',
-                    reportFiles: 'spotbugs.html',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: true
-                ])
-            }
+stage('Maven Compile + SAST (SpotBugs HTML)') {
+    agent {
+        docker {
+            image 'maven:3.9.6-eclipse-temurin-17'
         }
+    }
+    steps {
+        sh '''
+            mkdir -p src/main/resources
 
-        stage('Secret Scanning (TruffleHog)') {
-            agent {
-                docker {
-                    image 'trufflesecurity/trufflehog:latest'
-                    args '--entrypoint='
-                }
-            }
-            steps {
-                sh '''
-                    trufflehog --no-update filesystem . --json > trufflehogscan.json || echo "Trufflehog failed"
-                    cat trufflehogscan.json || echo "No secrets found"
-                '''
-                archiveArtifacts artifacts: 'trufflehogscan.json', allowEmptyArchive: true
-            }
-        }
+            curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl \
+                -o src/main/resources/spotbugs.xsl
 
-        stage('SCA (OWASP Dependency-Check)') {
-            agent {
-                docker {
-                    image 'owasp/dependency-check:latest'
-                    args '--entrypoint='
-                }
-            }
-            steps {
-                sh '''
-                    /usr/share/dependency-check/bin/dependency-check.sh \
-                        --scan src \
-                        --project "VulnerableJavaWebApplication" \
-                        --format ALL \
-                        --out . \
-                        --exclude node_modules --exclude target || echo "Dependency Check Failed"
-                '''
-                archiveArtifacts artifacts: 'dependency-check-report.*', allowEmptyArchive: true
-            }
-        }
+            file src/main/resources/spotbugs.xsl || echo "File corrupt?"
+            head -n 5 src/main/resources/spotbugs.xsl
 
-        stage('Build Docker Image') {
-            agent {
-                docker {
-                    image 'docker:dind'
-                    args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                sh 'docker build -t vulnerable-java-application:0.1 .'
-            }
-        }
+            mvn clean verify || echo "Maven verify failed"
 
-        stage('Run Docker Image') {
-            agent {
-                docker {
-                    image 'docker:dind'
-                    args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                sh '''
-                    docker rm -f vulnerable-container || true
-                    docker run --rm --name vulnerable-container -d -p 8081:8080 vulnerable-java-application:0.1
-                '''
-            }
-        }
+            mv target/site/spotbugsXml.html target/site/spotbugs.html || echo "Rename failed"
+
+            ls -lh target/spotbugsXml.xml || echo "XML report not found"
+            ls -lh target/site/spotbugs.html || echo "HTML report not found"
+        '''
+        archiveArtifacts artifacts: 'target/spotbugsXml.xml', allowEmptyArchive: true
+        archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
+        publishHTML(target: [
+            reportName: 'SpotBugs Report',
+            reportDir: 'target/site',
+            reportFiles: 'spotbugs.html',
+            keepAll: true,
+            alwaysLinkToLastBuild: true,
+            allowMissing: true
+        ])
     }
 }
