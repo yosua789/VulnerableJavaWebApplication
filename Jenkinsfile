@@ -6,23 +6,20 @@ pipeline {
         }
     }
 
-    environment {
-        MAVEN_OPTS = "-Dmaven.repo.local=.m2/repository"
-    }
-
     stages {
-        stage('SpotBugs SAST HTML') {
+        stage('Checkout') {
             steps {
-                sh '''
-                    apt-get update && apt-get install -y curl xsltproc
-                    mkdir -p src/main/resources
-                    curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o src/main/resources/spotbugs.xsl
-                    mvn clean verify
-                '''
+                git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
             }
         }
 
-        stage('Generate HTML Report') {
+        stage('Build with SpotBugs') {
+            steps {
+                sh 'mvn clean verify'
+            }
+        }
+
+        stage('Generate SpotBugs HTML Report') {
             steps {
                 sh '''
                     mkdir -p target
@@ -40,16 +37,18 @@ pipeline {
 
         stage('Archive Reports') {
             steps {
-                archiveArtifacts artifacts: 'target/spotbugs.html', onlyIfSuccessful: true
+                archiveArtifacts artifacts: 'target/spotbugs.html', fingerprint: true
             }
         }
 
         stage('Publish HTML Report') {
             steps {
                 publishHTML(target: [
+                    reportName: 'SpotBugs Report',
                     reportDir: 'target',
                     reportFiles: 'spotbugs.html',
-                    reportName: 'SpotBugs Report'
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true
                 ])
             }
         }
