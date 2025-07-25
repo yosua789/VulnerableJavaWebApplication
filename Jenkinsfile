@@ -2,44 +2,58 @@ pipeline {
     agent {
         docker {
             image 'maven:3.9.6-eclipse-temurin-17'
+            args '-u 0:0'
         }
+    }
+
+    environment {
+        MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
     }
 
     stages {
-        stage('Run SpotBugs and Convert to HTML') {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build & SpotBugs') {
             steps {
                 sh '''
-                    apt-get update && apt-get install -y xsltproc curl
+                    # Clean and build with SpotBugs plugin
+                    mvn clean verify
 
-                    mkdir -p target/site
+                    # Copy SpotBugs XSL to target
+                    mkdir -p target
+                    cp src/main/resources/spotbugs.xsl target/
 
-                    # Download XSLT file
-                    curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/spotbugs/etc/default.xsl \
-                      -o target/spotbugs.xsl
-
-                    # Run SpotBugs generate xml
-                    mvn clean compile com.github.spotbugs:spotbugs-maven-plugin:4.7.3.2:spotbugs
-
-                    # Convert xml to html
-                    xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/site/spotbugs.html || echo "Conversion failed"
+                    # Transform XML to HTML (if exists)
+                    if [ -f target/spotbugsXml.xml ]; then
+                        xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
+                    else
+                        echo "No SpotBugs XML report found."
+                    fi
                 '''
             }
         }
-    }
 
-    post {
-        always {
-            archiveArtifacts artifacts: 'target/spotbugsXml.xml', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
+        stage('Archive Reports') {
+            steps {
+                archiveArtifacts artifacts: 'target/spotbugs.html', allowEmptyArchive: true
+            }
+        }
 
-            publishHTML(target: [
-                reportName: 'SpotBugs Report',
-                reportDir: 'target/site',
-                reportFiles: 'spotbugs.html',
-                keepAll: true,
-                alwaysLinkToLastBuild: true,
-                allowMissing: true
-            ])
+        stage('Publish HTML Report') {
+            steps {
+                publishHTML(target: [
+                    reportName: 'SpotBugs Report',
+                    reportDir: 'target',
+                    reportFiles: 'spotbugs.html',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: true
+                ])
+            }
         }
     }
 }
