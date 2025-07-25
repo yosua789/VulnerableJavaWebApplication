@@ -101,7 +101,6 @@
                   </includes>
                   <stylesheet>src/main/resources/spotbugs.xsl</stylesheet>
                   <outputDir>${project.build.directory}/site</outputDir>
-                  <outputFileName>spotbugs.html</outputFileName>
                 </transformationSet>
               </transformationSets>
             </configuration>
