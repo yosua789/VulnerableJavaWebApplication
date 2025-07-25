@@ -10,7 +10,8 @@ pipeline {
             }
             steps {
                 sh '''
-                    mvn clean compile spotbugs:check || echo "SpotBugs failed"
+                    mvn clean verify || echo "SpotBugs or tests failed"
+
                     ls -lh target/spotbugsXml.xml || echo "XML report not found"
                     ls -lh target/site/spotbugs.html || echo "HTML report not found"
                 '''
