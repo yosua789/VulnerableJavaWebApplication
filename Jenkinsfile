@@ -10,6 +10,11 @@ pipeline {
             }
             steps {
                 sh '''
+                    mkdir -p src/main/resources
+
+                    curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/spotbugs/etc/default.xsl \
+                        -o src/main/resources/spotbugs.xsl
+
                     mvn clean verify || echo "Maven verify failed"
 
                     mv target/site/spotbugsXml.html target/site/spotbugs.html || echo "Rename failed"
