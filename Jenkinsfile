@@ -9,11 +9,11 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
+                checkout scm
             }
         }
 
-        stage('Build with SpotBugs') {
+        stage('Build and SpotBugs Scan') {
             steps {
                 sh 'mvn clean verify'
             }
@@ -22,6 +22,8 @@ pipeline {
         stage('Generate SpotBugs HTML Report') {
             steps {
                 sh '''
+                    apt-get update && apt-get install -y xsltproc
+
                     mkdir -p target
                     cp src/main/resources/spotbugs.xsl target/
 
@@ -37,18 +39,19 @@ pipeline {
 
         stage('Archive Reports') {
             steps {
-                archiveArtifacts artifacts: 'target/spotbugs.html', fingerprint: true
+                archiveArtifacts artifacts: 'target/spotbugs.html', onlyIfSuccessful: true
             }
         }
 
         stage('Publish HTML Report') {
             steps {
                 publishHTML(target: [
-                    reportName: 'SpotBugs Report',
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
                     reportDir: 'target',
                     reportFiles: 'spotbugs.html',
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true
+                    reportName: 'SpotBugs Report'
                 ])
             }
         }
