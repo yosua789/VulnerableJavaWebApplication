@@ -6,27 +6,35 @@ pipeline {
         }
     }
 
+    environment {
+        MAVEN_OPTS = "-Dmaven.repo.local=.m2/repository"
+    }
+
     stages {
-        stage('Checkout') {
+        stage('Install xsltproc') {
             steps {
-                checkout scm
+                sh 'apt-get update && apt-get install -y xsltproc curl'
             }
         }
 
-        stage('Build and SpotBugs Scan') {
+        stage('Build & SpotBugs') {
             steps {
                 sh 'mvn clean verify'
             }
         }
 
-        stage('Generate SpotBugs HTML Report') {
+        stage('Download SpotBugs XSL') {
             steps {
                 sh '''
-                    apt-get update && apt-get install -y xsltproc
-
                     mkdir -p target
-                    cp src/main/resources/spotbugs.xsl target/
+                    curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o target/spotbugs.xsl
+                '''
+            }
+        }
 
+        stage('Generate HTML Report') {
+            steps {
+                sh '''
                     if [ -f target/spotbugsXml.xml ]; then
                         xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
                     else
@@ -45,7 +53,7 @@ pipeline {
 
         stage('Publish HTML Report') {
             steps {
-                publishHTML(target: [
+                publishHTML (target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
