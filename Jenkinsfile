@@ -1,9 +1,9 @@
 pipeline {
-    agent any
-
-    tools {
-        maven 'Maven3'
-        jdk 'JDK17'
+    agent {
+        docker {
+            image 'maven:3.9.6-eclipse-temurin-17'
+            args '-u root:root'
+        }
     }
 
     environment {
@@ -11,26 +11,29 @@ pipeline {
     }
 
     stages {
-        stage('Build and SpotBugs') {
+        stage('SpotBugs SAST HTML') {
             steps {
-                sh 'mvn clean verify'
+                sh '''
+                    apt-get update && apt-get install -y curl xsltproc
+                    mkdir -p src/main/resources
+                    curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o src/main/resources/spotbugs.xsl
+                    mvn clean verify
+                '''
             }
         }
 
-        stage('Transform XML to HTML') {
+        stage('Generate HTML Report') {
             steps {
                 sh '''
-                apt-get update && apt-get install -y xsltproc
+                    mkdir -p target
+                    cp src/main/resources/spotbugs.xsl target/
 
-                mkdir -p target
-                cp src/main/resources/spotbugs.xsl target/
-
-                if [ -f target/spotbugsXml.xml ]; then
-                    xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
-                else
-                    echo "No SpotBugs XML report found."
-                    exit 1
-                fi
+                    if [ -f target/spotbugsXml.xml ]; then
+                        xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
+                    else
+                        echo "No SpotBugs XML report found."
+                        exit 1
+                    fi
                 '''
             }
         }
