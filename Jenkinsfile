@@ -6,20 +6,22 @@ pipeline {
     }
 
     stages {
-        stage('SpotBugs SAST HTML') {
+        stage('Run SpotBugs and Convert to HTML') {
             steps {
                 sh '''
                     apt-get update && apt-get install -y xsltproc curl
 
-                    # Download XSL stylesheet
+                    mkdir -p target/site
+
+                    # Download XSLT file
                     curl -sSL https://raw.githubusercontent.com/spotbugs/spotbugs/master/spotbugs/etc/default.xsl \
                       -o target/spotbugs.xsl
 
-                    # Generate XML report
-                    mvn clean compile spotbugs:spotbugs
+                    # Run SpotBugs generate xml
+                    mvn clean compile com.github.spotbugs:spotbugs-maven-plugin:4.7.3.2:spotbugs
 
-                    # Convert XML to HTML
-                    xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/site/spotbugs.html || echo "Convert failed"
+                    # Convert xml to html
+                    xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/site/spotbugs.html || echo "Conversion failed"
                 '''
             }
         }
@@ -29,6 +31,7 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'target/spotbugsXml.xml', allowEmptyArchive: true
             archiveArtifacts artifacts: 'target/site/spotbugs.html', allowEmptyArchive: true
+
             publishHTML(target: [
                 reportName: 'SpotBugs Report',
                 reportDir: 'target/site',
