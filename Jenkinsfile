@@ -10,7 +10,9 @@ pipeline {
             }
             steps {
                 sh '''
-                    mvn clean verify || echo "SpotBugs or tests failed"
+                    mvn clean verify || echo "Maven verify failed"
+
+                    mv target/site/spotbugsXml.html target/site/spotbugs.html || echo "Rename failed"
 
                     ls -lh target/spotbugsXml.xml || echo "XML report not found"
                     ls -lh target/site/spotbugs.html || echo "HTML report not found"
