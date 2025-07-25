@@ -1,0 +1,2 @@
+]11;?\[6n]11;?\[6n{"level":"info-0","ts":"2025-07-21T05:00:43Z","logger":"trufflehog","msg":"running source","source_manager_worker_id":"EFZOy","with_units":true}
+{"level":"info-0","ts":"2025-07-21T05:00:43Z","logger":"trufflehog","msg":"finished scanning","chunks":173,"bytes":2030599,"verified_secrets":0,"unverified_secrets":0,"scan_duration":"69.843125ms","trufflehog_version":"3.90.1","verification_caching":{"Hits":0,"Misses":0,"HitsWasted":0,"AttemptsSaved":0,"VerificationTimeSpentMS":0}}

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" 
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
@@ -17,7 +18,6 @@
   <properties>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
   <dependencies>
@@ -49,28 +49,25 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${parent.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
 
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
         <version>4.7.3.2</version>
-        <executions>
-          <execution>
-            <phase>verify</phase>
-            <goals>
-              <goal>spotbugs</goal>
-              <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
         <configuration>
+          <includeFilterFile>spotbugs-security-include.xml</includeFilterFile>
+          <excludeFilterFile>spotbugs-security-exclude.xml</excludeFilterFile>
           <xmlOutput>true</xmlOutput>
-          <xmlOutputDirectory>${project.build.directory}</xmlOutputDirectory>
-          <outputFile>${project.build.directory}/spotbugsXml.xml</outputFile>
           <failOnError>false</failOnError>
-          <effort>Max</effort>
-          <threshold>Low</threshold>
           <plugins>
             <plugin>
               <groupId>com.h3xstream.findsecbugs</groupId>
@@ -79,33 +76,6 @@
             </plugin>
           </plugins>
         </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>xml-maven-plugin</artifactId>
-        <version>1.0</version>
-        <executions>
-          <execution>
-            <id>transform-spotbugs-xml</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>transform</goal>
-            </goals>
-            <configuration>
-              <transformationSets>
-                <transformationSet>
-                  <dir>${project.build.directory}</dir>
-                  <includes>
-                    <include>spotbugsXml.xml</include>
-                  </includes>
-                  <stylesheet>src/main/resources/spotbugs.xsl</stylesheet>
-                  <outputDir>${project.build.directory}/site</outputDir>
-                </transformationSet>
-              </transformationSets>
-            </configuration>
-          </execution>
-        </executions>
       </plugin>
     </plugins>
   </build>
