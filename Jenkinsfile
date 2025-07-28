@@ -4,12 +4,20 @@ pipeline {
     stages {
         stage('Maven Compile and SAST SpotBugs') {
             agent {
-                label 'maven'
+                docker {
+                    image 'maven:3.9.6-eclipse-temurin-17'
+                    args '-u root:root'
+                }
             }
             steps {
-                sh 'mvn compile spotbugs:spotbugs'
-                sh 'cp src/main/resources/spotbugs.xsl target/'
                 sh '''
+                    apt-get update && apt-get install -y xsltproc
+
+                    mvn compile spotbugs:spotbugs
+
+                    mkdir -p target
+                    cp src/main/resources/spotbugs.xsl target/
+
                     if [ -f target/spotbugsXml.xml ]; then
                         xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
                     else
@@ -17,8 +25,9 @@ pipeline {
                         exit 1
                     fi
                 '''
-                archiveArtifacts artifacts: 'target/spotbugs.html'
+
                 archiveArtifacts artifacts: 'target/spotbugsXml.xml'
+                archiveArtifacts artifacts: 'target/spotbugs.html'
             }
         }
 
@@ -30,8 +39,10 @@ pipeline {
                 }
             }
             steps {
-                sh 'trufflehog --no-update filesystem . --json > trufflehogscan.json'
-                sh 'cat trufflehogscan.json'
+                sh '''
+                    trufflehog --no-update filesystem . --json > trufflehogscan.json
+                    cat trufflehogscan.json
+                '''
                 archiveArtifacts artifacts: 'trufflehogscan.json'
             }
         }
@@ -40,7 +51,7 @@ pipeline {
             agent {
                 docker {
                     image 'docker:dind'
-                    args '-u root --privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                    args '-u root:root -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
