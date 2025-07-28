@@ -2,36 +2,19 @@ pipeline {
     agent any
     environment {
         SONAR_HOST_URL = 'http://host.docker.internal:9010'
-        SONAR_PROJECT_KEY = 'vulnerablejavawebapp'
-        SONAR_TOKEN = credentials('sonarqube-token')
+        SONAR_LOGIN = credentials('sonarqube-token') // ID di Jenkins Credentials
     }
     stages {
-        stage('Cleanup Workspace') {
+        stage('SonarQube Analysis') {
             steps {
-                deleteDir()
-            }
-        }
-
-        stage('Clone Repo') {
-            steps {
-                git url: 'https://github.com/yosua789/VulnerableJavaWebApplication.git', branch: 'master'
-            }
-        }
-
-        stage('Build & SonarQube') {
-            agent {
-                docker {
-                    image 'maven:3.9.6-eclipse-temurin-17'
-                    args '-v $HOME/.m2:/root/.m2'
+                withDockerContainer('maven:3.9.6-eclipse-temurin-17') {
+                    sh '''
+                        mvn clean verify sonar:sonar \
+                            -Dsonar.projectKey=your-project-key \
+                            -Dsonar.host.url=${SONAR_HOST_URL} \
+                            -Dsonar.login=${SONAR_LOGIN}
+                    '''
                 }
-            }
-            steps {
-                sh '''
-                    mvn clean verify sonar:sonar \
-                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN
-                '''
             }
         }
     }
