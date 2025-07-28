@@ -48,17 +48,14 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
                 <version>4.7.3.2</version>
                 <configuration>
-                    <xmlOutput>true</xmlOutput>
                     <htmlOutput>true</htmlOutput>
+                    <outputFile>target/spotbugs.html</outputFile>
                     <failOnError>false</failOnError>
-                    <includeFilterFile>spotbugs-security-include.xml</includeFilterFile>
-                    <excludeFilterFile>spotbugs-security-exclude.xml</excludeFilterFile>
                     <plugins>
                         <plugin>
                             <groupId>com.h3xstream.findsecbugs</groupId>
