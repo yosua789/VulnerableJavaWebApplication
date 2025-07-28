@@ -7,12 +7,16 @@ pipeline {
     }
 
     environment {
+        SPOTBUGS_HTML = 'target/spotbugs.html'
+        SPOTBUGS_XML  = 'target/spotbugsXml.xml'
+        SPOTBUGS_XSL  = 'target/spotbugs.xsl'
         SONAR_PROJECT_KEY = 'vulnerablejavawebapp'
-        SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_TOKEN = credentials('sonarqube-token')
+        SONAR_HOST_URL = 'http://localhost:9000' // Sesuaikan URL SonarQube kamu
+        SONAR_TOKEN = credentials('sonarqube-token') // Sesuaikan dengan Jenkins credential ID
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 echo '[STEP] Git Checkout'
@@ -22,7 +26,7 @@ pipeline {
 
         stage('Install TruffleHog') {
             steps {
-                echo '[STEP] Install TruffleHog via pip'
+                echo '[STEP] Install & Run TruffleHog'
                 sh '''
                     apt-get update && apt-get install -y python3-pip
                     pip3 install trufflehog
@@ -30,9 +34,9 @@ pipeline {
             }
         }
 
-        stage('TruffleHog Scan') {
+        stage('Run TruffleHog') {
             steps {
-                echo '[STEP] Run TruffleHog'
+                echo '[STEP] Scanning Secret via TruffleHog'
                 sh '''
                     mkdir -p target
                     trufflehog filesystem . --json > target/trufflehog.json || true
@@ -40,10 +44,26 @@ pipeline {
             }
         }
 
-        stage('Build & SpotBugs') {
+        stage('Build & Run SpotBugs') {
             steps {
-                echo '[STEP] Build and Run SpotBugs'
+                echo '[STEP] Run mvn build & SpotBugs (with FindSecBugs)'
                 sh 'mvn clean verify'
+            }
+        }
+
+        stage('Generate SpotBugs HTML Report') {
+            steps {
+                echo '[STEP] Transform SpotBugs XML to HTML'
+                sh '''
+                    apt-get update && apt-get install -y xsltproc curl
+                    curl -sSfL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o $SPOTBUGS_XSL
+                    if [ -f $SPOTBUGS_XML ]; then
+                        xsltproc $SPOTBUGS_XSL $SPOTBUGS_XML > $SPOTBUGS_HTML
+                    else
+                        echo "SpotBugs XML report not found."
+                        exit 1
+                    fi
+                '''
             }
         }
 
@@ -51,26 +71,26 @@ pipeline {
             steps {
                 echo '[STEP] Run SonarQube Scan'
                 withSonarQubeEnv('SonarQube') {
-                    sh '''
+                    sh """
                         mvn sonar:sonar \
-                          -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                          -Dsonar.host.url=$SONAR_HOST_URL \
-                          -Dsonar.login=$SONAR_TOKEN
-                    '''
+                            -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
+                            -Dsonar.host.url=${env.SONAR_HOST_URL} \
+                            -Dsonar.login=${env.SONAR_TOKEN}
+                    """
                 }
             }
         }
 
         stage('Archive Report') {
             steps {
-                echo '[STEP] Archive spotbugs.html & trufflehog.json'
-                archiveArtifacts artifacts: 'target/spotbugs.html,target/trufflehog.json', allowEmptyArchive: true
+                echo '[STEP] Archive Reports'
+                archiveArtifacts artifacts: 'target/*.json,target/*.html,target/*.xml', allowEmptyArchive: true
             }
         }
 
         stage('Publish HTML Report') {
             steps {
-                echo '[STEP] Publish SpotBugs HTML'
+                echo '[STEP] Publish SpotBugs HTML Report'
                 publishHTML(target: [
                     reportName: 'SpotBugs Report',
                     reportDir: 'target',
