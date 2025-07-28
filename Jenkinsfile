@@ -16,7 +16,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 echo '[STEP] Git Checkout'
@@ -24,21 +23,12 @@ pipeline {
             }
         }
 
-        stage('Install Tools') {
-            steps {
-                echo '[STEP] Install xsltproc, curl, pip'
-                sh '''
-                    apt-get update
-                    apt-get install -y xsltproc curl python3-pip
-                    pip3 install trufflehog
-                '''
-            }
-        }
-
         stage('TruffleHog Secret Scan') {
             steps {
-                echo '[STEP] Run TruffleHog'
+                echo '[STEP] Run TruffleHog locally'
                 sh '''
+                    apt-get update && apt-get install -y python3-pip
+                    pip3 install trufflehog
                     mkdir -p target
                     trufflehog filesystem . --json > target/trufflehog.json || true
                 '''
@@ -47,29 +37,30 @@ pipeline {
 
         stage('Build & SpotBugs') {
             steps {
-                echo '[STEP] Maven build and SpotBugs'
+                echo '[STEP] Maven Build and SpotBugs Verification'
                 sh 'mvn clean verify'
             }
         }
 
-        stage('Download SpotBugs XSL') {
+        stage('Copy SpotBugs XSL from Repo') {
             steps {
-                echo '[STEP] Download SpotBugs default.xsl'
+                echo '[STEP] Copy spotbugs.xsl from local repo'
                 sh '''
                     mkdir -p target
-                    curl -sSfL https://raw.githubusercontent.com/spotbugs/spotbugs/4.7.3/etc/default.xsl -o $SPOTBUGS_XSL
+                    cp src/main/resources/spotbugs.xsl $SPOTBUGS_XSL
                 '''
             }
         }
 
         stage('Transform SpotBugs XML to HTML') {
             steps {
-                echo '[STEP] Convert SpotBugs XML to HTML'
+                echo '[STEP] XSLT Transformation'
                 sh '''
+                    apt-get install -y xsltproc
                     if [ -f $SPOTBUGS_XML ]; then
                         xsltproc $SPOTBUGS_XSL $SPOTBUGS_XML > $SPOTBUGS_HTML
                     else
-                        echo "ERROR: SpotBugs XML report not found!"
+                        echo "SpotBugs XML not found!"
                         exit 1
                     fi
                 '''
@@ -92,14 +83,14 @@ pipeline {
 
         stage('Archive Report') {
             steps {
-                echo '[STEP] Archive SpotBugs & TruffleHog reports'
+                echo '[STEP] Archive TruffleHog + SpotBugs HTML'
                 archiveArtifacts artifacts: 'target/spotbugs.html,target/trufflehog.json', allowEmptyArchive: true
             }
         }
 
         stage('Publish HTML Report') {
             steps {
-                echo '[STEP] Publish SpotBugs HTML report'
+                echo '[STEP] Publish SpotBugs Report'
                 publishHTML(target: [
                     reportName: 'SpotBugs Report',
                     reportDir: 'target',
