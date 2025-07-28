@@ -6,29 +6,16 @@ pipeline {
   }
   environment {
     SONAR_HOST_URL = 'http://host.docker.internal:9010'
-    SONAR_SCANNER_OPTS = '-Dsonar.projectKey=vulnerablejavawebapp'
   }
   stages {
-    stage('Checkout') {
+    stage('Clone Repo') {
       steps {
         git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
       }
     }
-    stage('Build') {
+    stage('Build & Analyze') {
       steps {
-        sh 'mvn clean install'
-      }
-    }
-    stage('SpotBugs') {
-      steps {
-        sh 'mvn com.github.spotbugs:spotbugs-maven-plugin:4.7.3.2:spotbugs'
-      }
-    }
-    stage('SonarQube Analysis') {
-      steps {
-        withSonarQubeEnv('SonarQube') {
-          sh 'mvn sonar:sonar'
-        }
+        sh 'mvn clean verify sonar:sonar -Dsonar.projectKey=vulnerablejavawebapp -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONARQUBE_TOKEN'
       }
     }
   }
