@@ -11,7 +11,7 @@ pipeline {
         SPOTBUGS_XML  = 'target/spotbugsXml.xml'
         SPOTBUGS_XSL  = 'target/spotbugs.xsl'
         SONAR_PROJECT_KEY = 'vulnerablejavawebapp'
-        SONAR_HOST_URL = 'http://localhost:9010'
+        SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_TOKEN = credentials('sonarqube-token')
     }
 
