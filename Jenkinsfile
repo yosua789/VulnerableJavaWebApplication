@@ -1,61 +1,50 @@
 pipeline {
-    agent none
+    agent {
+        docker {
+            image 'maven:3.9.6-eclipse-temurin-17'
+            args '-u root:root'
+        }
+    }
+
+    environment {
+        SPOTBUGS_XSL_URL = 'https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl'
+    }
 
     stages {
-        stage('Maven Compile and SAST SpotBugs') {
-            agent {
-                docker {
-                    image 'maven:3.9.6-eclipse-temurin-17'
-                    args '-u root:root'
-                }
-            }
+        stage('Build and SpotBugs Scan') {
             steps {
+                sh 'mvn clean compile spotbugs:spotbugs'
+                sh 'mkdir -p target'
+                sh 'curl -sSL $SPOTBUGS_XSL_URL -o target/spotbugs.xsl'
+                sh 'apt-get update && apt-get install -y xsltproc'
                 sh '''
-                    apt-get update && apt-get install -y xsltproc
-
-                    mvn compile spotbugs:spotbugs
-
-                    mkdir -p target
-                    cp src/main/resources/spotbugs.xsl target/
-
                     if [ -f target/spotbugsXml.xml ]; then
                         xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
                     else
-                        echo "No SpotBugs XML report found."
+                        echo "No SpotBugs report found"
                         exit 1
                     fi
                 '''
-
-                archiveArtifacts artifacts: 'target/spotbugsXml.xml'
-                archiveArtifacts artifacts: 'target/spotbugs.html'
             }
         }
 
-        stage('Secret Scanning') {
-            agent {
-                docker {
-                    image 'trufflesecurity/trufflehog:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock --entrypoint='
-                }
-            }
+        stage('Archive Reports') {
             steps {
-                sh '''
-                    trufflehog --no-update filesystem . --json > trufflehogscan.json
-                    cat trufflehogscan.json
-                '''
-                archiveArtifacts artifacts: 'trufflehogscan.json'
+                archiveArtifacts artifacts: 'target/spotbugs.html', onlyIfSuccessful: true
+                archiveArtifacts artifacts: 'target/spotbugsXml.xml', onlyIfSuccessful: true
             }
         }
 
-        stage('Build Docker Image') {
-            agent {
-                docker {
-                    image 'docker:dind'
-                    args '-u root:root -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
+        stage('Publish HTML Report') {
             steps {
-                sh 'docker build -t vulnerable-java-application:0.1 .'
+                publishHTML target: [
+                    reportDir: 'target',
+                    reportFiles: 'spotbugs.html',
+                    reportName: 'SpotBugs Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
+                ]
             }
         }
     }
