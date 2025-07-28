@@ -1,34 +1,33 @@
 pipeline {
-  agent any
-
-  environment {
-    SONAR_TOKEN     = credentials('sonarqube-token')
-    SONAR_HOST_URL  = 'http://host.docker.internal:9010'
+  agent {
+    docker {
+      image 'maven:3.9.6-eclipse-temurin-17'
+    }
   }
-
+  environment {
+    SONAR_HOST_URL = 'http://host.docker.internal:9010'
+    SONAR_SCANNER_OPTS = '-Dsonar.projectKey=vulnerablejavawebapp'
+  }
   stages {
     stage('Checkout') {
       steps {
-        git branch: 'master', url: 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
+        git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
       }
     }
-
-    stage('SpotBugs Analysis') {
+    stage('Build') {
       steps {
-        sh 'mvn clean compile spotbugs:spotbugs'
+        sh 'mvn clean install'
       }
     }
-
-    stage('TruffleHog') {
+    stage('SpotBugs') {
       steps {
-        sh 'docker run --rm -v $PWD:/pwd trufflesecurity/trufflehog:latest filesystem /pwd --json > trufflehog.json || true'
+        sh 'mvn com.github.spotbugs:spotbugs-maven-plugin:4.7.3.2:spotbugs'
       }
     }
-
     stage('SonarQube Analysis') {
       steps {
         withSonarQubeEnv('SonarQube') {
-          sh 'mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN'
+          sh 'mvn sonar:sonar'
         }
       }
     }
