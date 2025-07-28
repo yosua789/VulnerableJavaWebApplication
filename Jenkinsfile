@@ -11,8 +11,8 @@ pipeline {
         SPOTBUGS_XML  = 'target/spotbugsXml.xml'
         SPOTBUGS_XSL  = 'target/spotbugs.xsl'
         SONAR_PROJECT_KEY = 'vulnerablejavawebapp'
-        SONAR_HOST_URL = 'http://localhost:9000' // Sesuaikan URL SonarQube kamu
-        SONAR_TOKEN = credentials('sonarqube-token') // Sesuaikan dengan Jenkins credential ID
+        SONAR_HOST_URL = 'http://localhost:9010'
+        SONAR_TOKEN = credentials('sonarqube-token')
     }
 
     stages {
@@ -24,19 +24,20 @@ pipeline {
             }
         }
 
-        stage('Install TruffleHog') {
+        stage('Install Tools') {
             steps {
-                echo '[STEP] Install & Run TruffleHog'
+                echo '[STEP] Install xsltproc, curl, pip'
                 sh '''
-                    apt-get update && apt-get install -y python3-pip
+                    apt-get update
+                    apt-get install -y xsltproc curl python3-pip
                     pip3 install trufflehog
                 '''
             }
         }
 
-        stage('Run TruffleHog') {
+        stage('TruffleHog Secret Scan') {
             steps {
-                echo '[STEP] Scanning Secret via TruffleHog'
+                echo '[STEP] Run TruffleHog'
                 sh '''
                     mkdir -p target
                     trufflehog filesystem . --json > target/trufflehog.json || true
@@ -44,23 +45,31 @@ pipeline {
             }
         }
 
-        stage('Build & Run SpotBugs') {
+        stage('Build & SpotBugs') {
             steps {
-                echo '[STEP] Run mvn build & SpotBugs (with FindSecBugs)'
+                echo '[STEP] Maven build and SpotBugs'
                 sh 'mvn clean verify'
             }
         }
 
-        stage('Generate SpotBugs HTML Report') {
+        stage('Download SpotBugs XSL') {
             steps {
-                echo '[STEP] Transform SpotBugs XML to HTML'
+                echo '[STEP] Download SpotBugs default.xsl'
                 sh '''
-                    apt-get update && apt-get install -y xsltproc curl
-                    curl -sSfL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o $SPOTBUGS_XSL
+                    mkdir -p target
+                    curl -sSfL https://raw.githubusercontent.com/spotbugs/spotbugs/4.7.3/etc/default.xsl -o $SPOTBUGS_XSL
+                '''
+            }
+        }
+
+        stage('Transform SpotBugs XML to HTML') {
+            steps {
+                echo '[STEP] Convert SpotBugs XML to HTML'
+                sh '''
                     if [ -f $SPOTBUGS_XML ]; then
                         xsltproc $SPOTBUGS_XSL $SPOTBUGS_XML > $SPOTBUGS_HTML
                     else
-                        echo "SpotBugs XML report not found."
+                        echo "ERROR: SpotBugs XML report not found!"
                         exit 1
                     fi
                 '''
@@ -71,26 +80,26 @@ pipeline {
             steps {
                 echo '[STEP] Run SonarQube Scan'
                 withSonarQubeEnv('SonarQube') {
-                    sh """
+                    sh '''
                         mvn sonar:sonar \
-                            -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
-                            -Dsonar.host.url=${env.SONAR_HOST_URL} \
-                            -Dsonar.login=${env.SONAR_TOKEN}
-                    """
+                            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.login=$SONAR_TOKEN
+                    '''
                 }
             }
         }
 
         stage('Archive Report') {
             steps {
-                echo '[STEP] Archive Reports'
-                archiveArtifacts artifacts: 'target/*.json,target/*.html,target/*.xml', allowEmptyArchive: true
+                echo '[STEP] Archive SpotBugs & TruffleHog reports'
+                archiveArtifacts artifacts: 'target/spotbugs.html,target/trufflehog.json', allowEmptyArchive: true
             }
         }
 
         stage('Publish HTML Report') {
             steps {
-                echo '[STEP] Publish SpotBugs HTML Report'
+                echo '[STEP] Publish SpotBugs HTML report'
                 publishHTML(target: [
                     reportName: 'SpotBugs Report',
                     reportDir: 'target',
