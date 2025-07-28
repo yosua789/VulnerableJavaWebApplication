@@ -13,12 +13,11 @@ pipeline {
     }
 
     stages {
+
         stage('Build & SpotBugs') {
             steps {
-                echo "[STEP] Clean, compile & generate SpotBugs report"
-                sh '''
-                    mvn clean compile spotbugs:spotbugs
-                '''
+                echo "[STEP] Run mvn clean verify with SpotBugs plugin"
+                sh 'mvn clean verify'
             }
         }
 
@@ -27,53 +26,42 @@ pipeline {
                 echo "[STEP] Download SpotBugs XSL file"
                 sh '''
                     mkdir -p target
-                    curl -sSfL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o ${SPOTBUGS_XSL}
+                    curl -sSfL https://raw.githubusercontent.com/spotbugs/spotbugs/main/etc/spotbugs.xsl -o ${SPOTBUGS_XSL}
                 '''
             }
         }
 
         stage('Transform XML to HTML') {
             steps {
-                echo "[STEP] Convert SpotBugs XML to HTML"
-
+                echo "[STEP] Transform SpotBugs XML to HTML"
                 sh '''
-                    echo "[DEBUG] Check SpotBugs XML:"
-                    ls -lh ${SPOTBUGS_XML} || echo "Missing XML"
-
-                    echo "[DEBUG] Check SpotBugs XSL:"
-                    head -n 10 ${SPOTBUGS_XSL} || echo "Missing XSL"
-
-                    if [ ! -f "${SPOTBUGS_XML}" ]; then
-                        echo "[ERROR] SpotBugs XML not found!"
-                        exit 1
+                    if [ -f "${SPOTBUGS_XML}" ]; then
+                        apt-get update && apt-get install -y xsltproc > /dev/null
+                        xsltproc ${SPOTBUGS_XSL} ${SPOTBUGS_XML} > ${SPOTBUGS_HTML}
+                    else
+                        echo "No SpotBugs XML report found."; exit 1
                     fi
-
-                    echo "[STEP] Installing xsltproc"
-                    apt-get update && apt-get install -y xsltproc
-
-                    echo "[STEP] Converting XML ➝ HTML"
-                    xsltproc ${SPOTBUGS_XSL} ${SPOTBUGS_XML} > ${SPOTBUGS_HTML}
                 '''
             }
         }
 
         stage('Archive Report') {
             steps {
-                echo "[STEP] Archiving SpotBugs HTML report"
-                archiveArtifacts artifacts: "${SPOTBUGS_HTML}", allowEmptyArchive: false
+                echo "[STEP] Archive HTML report"
+                archiveArtifacts artifacts: "${SPOTBUGS_HTML}", onlyIfSuccessful: true
             }
         }
 
         stage('Publish HTML Report') {
             steps {
-                echo "[STEP] Publishing SpotBugs HTML to Jenkins"
-                publishHTML([
-                    reportName: 'SpotBugs Report',
+                echo "[STEP] Publish SpotBugs HTML to Jenkins UI"
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
                     reportDir: 'target',
                     reportFiles: 'spotbugs.html',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: false
+                    reportName: 'SpotBugs Report'
                 ])
             }
         }
