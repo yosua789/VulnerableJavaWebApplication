@@ -7,114 +7,77 @@ pipeline {
     }
 
     environment {
-        SPOTBUGS_XML = 'target/spotbugsXml.xml'
-        SPOTBUGS_HTML = 'target/spotbugs.html'
-        SPOTBUGS_XSL = 'target/spotbugs.xsl'
-        SONAR_TOKEN = 'sqp_e3a2dd8c83cec020ad41d08031d5f09a3047a5a5'
+        SONAR_PROJECT_KEY = 'vulnerablejavawebapp'
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_TOKEN = credentials('sonarqube-token')
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                echo '[STEP] Git Checkout'
+                checkout scm
+            }
+        }
+
+        stage('Install TruffleHog') {
+            steps {
+                echo '[STEP] Install TruffleHog via pip'
+                sh '''
+                    apt-get update && apt-get install -y python3-pip
+                    pip3 install trufflehog
+                '''
+            }
+        }
+
+        stage('TruffleHog Scan') {
+            steps {
+                echo '[STEP] Run TruffleHog'
+                sh '''
+                    mkdir -p target
+                    trufflehog filesystem . --json > target/trufflehog.json || true
+                '''
+            }
+        }
+
         stage('Build & SpotBugs') {
             steps {
-                echo "[STEP] Run mvn clean verify with SpotBugs plugin"
+                echo '[STEP] Build and Run SpotBugs'
                 sh 'mvn clean verify'
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                echo "[STEP] Install xsltproc"
-                sh '''
-                    apt-get update
-                    apt-get install -y xsltproc
-                '''
-            }
-        }
-
-        stage('Generate SpotBugs XSL') {
-            steps {
-                echo "[STEP] Generate SpotBugs XSL file"
-                sh """
-                    mkdir -p target
-                    cat > ${SPOTBUGS_XSL} <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
-  <xsl:output method="html"/>
-  <xsl:template match="/">
-    <html>
-      <head><title>SpotBugs Report</title></head>
-      <body>
-        <h1>SpotBugs Findings</h1>
-        <table border="1">
-          <tr><th>Type</th><th>Class</th><th>Method</th><th>Message</th></tr>
-          <xsl:for-each select="BugCollection/BugInstance">
-            <tr>
-              <td><xsl:value-of select="@type"/></td>
-              <td><xsl:value-of select="Class/@classname"/></td>
-              <td><xsl:value-of select="Method/@name"/></td>
-              <td><xsl:value-of select="LongMessage"/></td>
-            </tr>
-          </xsl:for-each>
-        </table>
-      </body>
-    </html>
-  </xsl:template>
-</xsl:stylesheet>
-EOF
-                """
-            }
-        }
-
-        stage('Transform XML to HTML') {
-            steps {
-                echo "[STEP] Transform SpotBugs XML to HTML"
-                sh 'xsltproc ${SPOTBUGS_XSL} ${SPOTBUGS_XML} > ${SPOTBUGS_HTML}'
-            }
-        }
-
-        stage('TruffleHog Secrets Scan') {
-            agent {
-                docker {
-                    image 'trufflesecurity/trufflehog:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock --entrypoint='
-                }
-            }
-            steps {
-                echo "[STEP] Run TruffleHog Scan"
-                sh '''
-                    trufflehog --no-update filesystem . --json > trufflehogscan.json
-                    cat trufflehogscan.json
-                '''
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo "[STEP] Run SonarQube Scan"
-                sh """
-                    mvn sonar:sonar \
-                    -Dsonar.projectKey=VulnerableJavaWebApplication \
-                    -Dsonar.host.url=http://localhost:9010 \
-                    -Dsonar.login=${SONAR_TOKEN}
-                """
+                echo '[STEP] Run SonarQube Scan'
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                          -Dsonar.host.url=$SONAR_HOST_URL \
+                          -Dsonar.login=$SONAR_TOKEN
+                    '''
+                }
             }
         }
 
         stage('Archive Report') {
             steps {
-                echo "[STEP] Archive spotbugs.html"
-                archiveArtifacts artifacts: "${SPOTBUGS_HTML}", fingerprint: true
-                archiveArtifacts artifacts: "trufflehogscan.json", fingerprint: true
+                echo '[STEP] Archive spotbugs.html & trufflehog.json'
+                archiveArtifacts artifacts: 'target/spotbugs.html,target/trufflehog.json', allowEmptyArchive: true
             }
         }
 
         stage('Publish HTML Report') {
             steps {
-                echo "[STEP] Publish SpotBugs HTML Report"
+                echo '[STEP] Publish SpotBugs HTML'
                 publishHTML(target: [
+                    reportName: 'SpotBugs Report',
                     reportDir: 'target',
                     reportFiles: 'spotbugs.html',
-                    reportName: 'SpotBugs Report'
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: true
                 ])
             }
         }
