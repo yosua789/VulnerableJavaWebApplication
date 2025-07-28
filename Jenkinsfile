@@ -7,44 +7,74 @@ pipeline {
     }
 
     environment {
-        SPOTBUGS_XSL_URL = 'https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl'
+        SPOTBUGS_XML = 'target/spotbugsXml.xml'
+        SPOTBUGS_HTML = 'target/spotbugs.html'
+        SPOTBUGS_XSL = 'target/spotbugs.xsl'
     }
 
     stages {
-        stage('Build and SpotBugs Scan') {
+        stage('Build & SpotBugs') {
             steps {
-                sh 'mvn clean compile spotbugs:spotbugs'
-                sh 'mkdir -p target'
-                sh 'curl -sSL $SPOTBUGS_XSL_URL -o target/spotbugs.xsl'
-                sh 'apt-get update && apt-get install -y xsltproc'
+                echo "[STEP] Clean, compile & generate SpotBugs report"
                 sh '''
-                    if [ -f target/spotbugsXml.xml ]; then
-                        xsltproc target/spotbugs.xsl target/spotbugsXml.xml > target/spotbugs.html
-                    else
-                        echo "No SpotBugs report found"
-                        exit 1
-                    fi
+                    mvn clean compile spotbugs:spotbugs
                 '''
             }
         }
 
-        stage('Archive Reports') {
+        stage('Download SpotBugs XSL') {
             steps {
-                archiveArtifacts artifacts: 'target/spotbugs.html', onlyIfSuccessful: true
-                archiveArtifacts artifacts: 'target/spotbugsXml.xml', onlyIfSuccessful: true
+                echo "[STEP] Download SpotBugs XSL file"
+                sh '''
+                    mkdir -p target
+                    curl -sSfL https://raw.githubusercontent.com/spotbugs/spotbugs/master/etc/default.xsl -o ${SPOTBUGS_XSL}
+                '''
+            }
+        }
+
+        stage('Transform XML to HTML') {
+            steps {
+                echo "[STEP] Convert SpotBugs XML to HTML"
+
+                sh '''
+                    echo "[DEBUG] Check SpotBugs XML:"
+                    ls -lh ${SPOTBUGS_XML} || echo "Missing XML"
+
+                    echo "[DEBUG] Check SpotBugs XSL:"
+                    head -n 10 ${SPOTBUGS_XSL} || echo "Missing XSL"
+
+                    if [ ! -f "${SPOTBUGS_XML}" ]; then
+                        echo "[ERROR] SpotBugs XML not found!"
+                        exit 1
+                    fi
+
+                    echo "[STEP] Installing xsltproc"
+                    apt-get update && apt-get install -y xsltproc
+
+                    echo "[STEP] Converting XML ➝ HTML"
+                    xsltproc ${SPOTBUGS_XSL} ${SPOTBUGS_XML} > ${SPOTBUGS_HTML}
+                '''
+            }
+        }
+
+        stage('Archive Report') {
+            steps {
+                echo "[STEP] Archiving SpotBugs HTML report"
+                archiveArtifacts artifacts: "${SPOTBUGS_HTML}", allowEmptyArchive: false
             }
         }
 
         stage('Publish HTML Report') {
             steps {
-                publishHTML target: [
+                echo "[STEP] Publishing SpotBugs HTML to Jenkins"
+                publishHTML([
+                    reportName: 'SpotBugs Report',
                     reportDir: 'target',
                     reportFiles: 'spotbugs.html',
-                    reportName: 'SpotBugs Report',
                     keepAll: true,
                     alwaysLinkToLastBuild: true,
                     allowMissing: false
-                ]
+                ])
             }
         }
     }
