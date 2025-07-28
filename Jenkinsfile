@@ -13,7 +13,7 @@ pipeline {
 
         SONAR_PROJECT_KEY = 'vulnerablejavawebapp'
         SONAR_HOST_URL    = 'http://host.docker.internal:9010'
-        SONAR_TOKEN       = credentials('sonarqube-token') // Token disimpan via Jenkins credentials
+        SONAR_TOKEN       = credentials('sonarqube-token')
     }
 
     stages {
