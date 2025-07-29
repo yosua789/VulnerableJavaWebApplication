@@ -14,19 +14,13 @@ pipeline {
 
         stage('Build with Maven + SpotBugs') {
             steps {
-                sh '''
-                    set -x
-                    mvn clean compile spotbugs:spotbugs || true
-                '''
+                sh 'mvn clean compile spotbugs:spotbugs || true'
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                sh '''
-                    set -x
-                    trufflehog filesystem --json . > trufflehogscan.json || true
-                '''
+                sh 'trufflehog filesystem --json . > trufflehogscan.json || true'
             }
         }
 
@@ -39,9 +33,9 @@ pipeline {
                     sh '''
                         set -x
                         mvn sonar:sonar \
-                          -Dsonar.projectKey=VulnerableJavaWebApplication \
-                          -Dsonar.host.url=${SONAR_HOST_URL} \
-                          -Dsonar.login=${SONAR_TOKEN}
+                            -Dsonar.projectKey=VulnerableJavaWebApplication \
+                            -Dsonar.host.url=${SONAR_HOST_URL} \
+                            -Dsonar.login=${SONAR_TOKEN}
                     '''
                 }
             }
@@ -57,11 +51,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    set -x
-                    command -v docker || echo "Docker not available inside this Jenkins container."
-                    docker build -t vulnerablejavawebapp . || true
-                '''
+                sh 'docker build -t vulnerablejavawebapp .'
             }
         }
     }
