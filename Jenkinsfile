@@ -1,32 +1,34 @@
 pipeline {
-    agent none
+    agent any
+
+    tools {
+        maven 'Maven 3'
+    }
+
+    environment {
+        SONAR_TOKEN = credentials('sonarqube-token')
+    }
 
     stages {
 
-        stage('Maven Compile and SAST (SpotBugs)') {
-            agent {
-                docker {
-                    image 'maven:3.8.7-openjdk-17'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
+        stage('Checkout Source Code') {
             steps {
-                sh 'mvn compile spotbugs:spotbugs'
-                archiveArtifacts artifacts: 'target/spotbugs.html', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'target/spotbugsXml.xml', allowEmptyArchive: true
+                checkout scm
             }
         }
 
-        stage('Secret Scanning (TruffleHog)') {
-            agent {
-                docker {
-                    image 'trufflesecurity/trufflehog:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock --entrypoint='
-                }
+        stage('Compile & SpotBugs') {
+            steps {
+                sh 'mvn compile spotbugs:spotbugs'
+                archiveArtifacts artifacts: 'target/spotbugs*.xml, target/spotbugs*.html', allowEmptyArchive: true
             }
+        }
+
+        stage('Secret Scan with TruffleHog') {
             steps {
                 sh '''
-                    trufflehog --no-update filesystem . --json > trufflehogscan.json || true
+                    pip install --user trufflehog || true
+                    ~/.local/bin/trufflehog --no-update filesystem . --json > trufflehogscan.json || true
                     cat trufflehogscan.json
                 '''
                 archiveArtifacts artifacts: 'trufflehogscan.json', allowEmptyArchive: true
@@ -34,14 +36,6 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            agent {
-                docker {
-                    image 'maven:3.8.7-openjdk-17'
-                }
-            }
-            environment {
-                SONAR_TOKEN = credentials('sonarqube-token')
-            }
             steps {
                 script {
                     def scannerHome = tool 'SonarScanner'
@@ -51,7 +45,6 @@ pipeline {
                             -Dsonar.projectKey=vulnerable-java \
                             -Dsonar.sources=src \
                             -Dsonar.java.binaries=target/classes \
-                            -Dsonar.host.url=$SONAR_HOST_URL \
                             -Dsonar.login=$SONAR_TOKEN \
                             -Dsonar.java.spotbugs.reportPaths=target/spotbugsXml.xml
                         """
@@ -61,7 +54,6 @@ pipeline {
         }
 
         stage('Quality Gate') {
-            agent any
             steps {
                 timeout(time: 1, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
@@ -70,15 +62,16 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            agent {
-                docker {
-                    image 'docker:20.10.24-dind'
-                    args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
             steps {
                 sh 'docker build -t vulnerable-java-application:0.1 .'
             }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: '**/target/*.jar, **/*.xml, **/*.json', allowEmptyArchive: true
+            cleanWs()
         }
     }
 }
