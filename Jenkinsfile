@@ -18,7 +18,7 @@ pipeline {
             agent {
                 docker {
                     image 'eclipse-temurin:17-jdk'
-                    args '-u root' // supaya bisa apt install
+                    args '-u root'
                 }
             }
             steps {
@@ -27,8 +27,6 @@ pipeline {
                     mvn -version
 
                     mvn compile spotbugs:spotbugs
-
-                    ls -lah target
                 '''
                 archiveArtifacts artifacts: 'target/spotbugs*.xml, target/spotbugs*.html', allowEmptyArchive: true
             }
@@ -55,9 +53,7 @@ pipeline {
             }
             steps {
                 script {
-                    sh '''
-                        apt-get update && apt-get install -y maven
-                    '''
+                    sh 'apt-get update && apt-get install -y maven'
                     def scannerHome = tool 'SonarScanner'
                     withSonarQubeEnv('SonarQubeServer') {
                         sh """
@@ -92,7 +88,6 @@ pipeline {
 
     post {
         always {
-            agent any
             steps {
                 archiveArtifacts artifacts: '**/target/*.jar, **/*.xml, **/*.json', allowEmptyArchive: true
                 cleanWs()
