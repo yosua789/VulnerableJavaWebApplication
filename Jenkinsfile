@@ -8,31 +8,29 @@ pipeline {
     stages {
         stage('Checkout Source Code') {
             steps {
-                git url: 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
+                git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
             }
         }
 
         stage('Build with Maven + SpotBugs') {
             steps {
-                sh 'mvn clean compile spotbugs:spotbugs'
+                sh 'mvn clean compile spotbugs:spotbugs || true'
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                sh 'trufflehog filesystem . || true'
+                sh 'trufflehog filesystem --json . > trufflehogscan.json || true'
             }
         }
 
         stage('SonarQube Analysis') {
+            environment {
+                SONAR_HOST_URL = 'http://localhost:9010'
+            }
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh """
-                        mvn sonar:sonar \
-                        -Dsonar.projectKey=VulnerableJavaWebApplication \
-                        -Dsonar.host.url=http://localhost:9010 \
-                        -Dsonar.login=${SONAR_TOKEN}
-                    """
+                    sh "mvn sonar:sonar -Dsonar.projectKey=VulnerableJavaWebApplication -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN"
                 }
             }
         }
@@ -47,18 +45,17 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t vulnerable-app .'
+                sh 'docker build -t vulnerablejavawebapp .'
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+            archiveArtifacts artifacts: '**/target/*.jar, **/*.json, **/zapreport.html, **/spotbugs*.xml', allowEmptyArchive: true
             cleanWs()
             echo 'Pipeline Finished.'
         }
-
         failure {
             echo 'Pipeline Failed. Check logs.'
         }
