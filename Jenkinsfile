@@ -1,9 +1,5 @@
 pipeline {
-    agent any
-
-    tools {
-        maven 'Maven 3'
-    }
+    agent none
 
     environment {
         SONAR_TOKEN = credentials('sonarqube-token')
@@ -12,12 +8,18 @@ pipeline {
     stages {
 
         stage('Checkout Source Code') {
+            agent any
             steps {
                 checkout scm
             }
         }
 
         stage('Compile & SpotBugs') {
+            agent {
+                docker {
+                    image 'maven:3.8.7-openjdk-17'
+                }
+            }
             steps {
                 sh 'mvn compile spotbugs:spotbugs'
                 archiveArtifacts artifacts: 'target/spotbugs*.xml, target/spotbugs*.html', allowEmptyArchive: true
@@ -25,6 +27,7 @@ pipeline {
         }
 
         stage('Secret Scan with TruffleHog') {
+            agent any
             steps {
                 sh '''
                     pip install --user trufflehog || true
@@ -36,6 +39,11 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'maven:3.8.7-openjdk-17'
+                }
+            }
             steps {
                 script {
                     def scannerHome = tool 'SonarScanner'
@@ -54,6 +62,7 @@ pipeline {
         }
 
         stage('Quality Gate') {
+            agent any
             steps {
                 timeout(time: 1, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
@@ -62,6 +71,7 @@ pipeline {
         }
 
         stage('Build Docker Image') {
+            agent any
             steps {
                 sh 'docker build -t vulnerable-java-application:0.1 .'
             }
