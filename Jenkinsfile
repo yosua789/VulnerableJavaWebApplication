@@ -1,13 +1,13 @@
 pipeline {
-    agent none
+    agent any
 
     environment {
         SONAR_TOKEN = credentials('sonarqube-token')
     }
 
     stages {
+
         stage('Checkout Source Code') {
-            agent any
             steps {
                 checkout scm
             }
@@ -31,7 +31,6 @@ pipeline {
         }
 
         stage('Secret Scan with TruffleHog') {
-            agent any
             steps {
                 sh '''
                     pip install --user trufflehog || true
@@ -68,7 +67,6 @@ pipeline {
         }
 
         stage('Quality Gate') {
-            agent any
             steps {
                 timeout(time: 1, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
@@ -77,7 +75,6 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            agent any
             steps {
                 sh 'docker build -t vulnerable-java-application:0.1 .'
             }
