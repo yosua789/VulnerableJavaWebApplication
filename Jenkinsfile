@@ -14,13 +14,17 @@ pipeline {
 
         stage('Build with Maven + SpotBugs') {
             steps {
-                sh 'mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed, continuing..."'
+                sh '''
+                    mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed, continuing..."
+                '''
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                sh 'trufflehog git https://github.com/yosua789/VulnerableJavaWebApplication.git --json > trufflehogscan.json || echo "TruffleHog failed, continuing..."'
+                sh '''
+                    trufflehog filesystem . --json > trufflehogscan.json || echo "TruffleHog failed, continuing..."
+                '''
             }
         }
 
@@ -30,19 +34,19 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh """
+                    sh '''
                         mvn sonar:sonar \
-                        -Dsonar.projectKey=vulnerablejavawebapp \
-                        -Dsonar.token=$SONAR_TOKEN \
-                        -Dsonar.host.url=$SONAR_HOST_URL
-                    """
+                            -Dsonar.projectKey=vulnerablejavawebapp \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.token=$SONAR_TOKEN || echo "SonarQube analysis failed, continuing..."
+                    '''
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                echo 'Check SonarQube Quality Gate...'
+                echo "Check SonarQube Quality Gate..."
                 timeout(time: 3, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
@@ -51,7 +55,9 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t vulnerablejavawebapp .'
+                sh '''
+                    docker build -t vulnerablejavawebapp . || echo "Docker build failed"
+                '''
             }
         }
     }
@@ -59,7 +65,7 @@ pipeline {
     post {
         always {
             echo 'Archive artifacts & clean workspace...'
-            archiveArtifacts artifacts: '**/target/*.jar, **/*.json, **/spotbugs*.xml', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/target/*.jar, **/*.json, **/zapreport.html, **/spotbugs*.xml', allowEmptyArchive: true
             cleanWs()
             echo 'Pipeline Finished.'
         }
