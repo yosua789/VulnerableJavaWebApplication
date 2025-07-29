@@ -20,7 +20,7 @@ pipeline {
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                sh 'trufflehog filesystem --json . > trufflehogscan.json || true'
+                sh 'trufflehog git --json . > trufflehogscan.json || true'
             }
         }
 
@@ -30,7 +30,6 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    // JANGAN pakai localhost, pake `sonarqube`
                     sh '''
                         mvn sonar:sonar \
                           -Dsonar.projectKey=VulnerableJavaWebApplication \
