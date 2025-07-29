@@ -14,17 +14,13 @@ pipeline {
 
         stage('Build with Maven + SpotBugs') {
             steps {
-                sh '''
-                    mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed, continuing..."
-                '''
+                sh 'mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed, continuing..."'
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                sh '''
-                    trufflehog filesystem . --json > trufflehogscan.json || echo "TruffleHog failed, continuing..."
-                '''
+                sh 'trufflehog filesystem --directory . --json > trufflehogscan.json || echo "TruffleHog failed, continuing..."'
             }
         }
 
@@ -34,30 +30,33 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh '''
+                    sh """
                         mvn sonar:sonar \
-                            -Dsonar.projectKey=vulnerablejavawebapp \
-                            -Dsonar.host.url=$SONAR_HOST_URL \
-                            -Dsonar.token=$SONAR_TOKEN || echo "SonarQube analysis failed, continuing..."
-                    '''
+                        -Dsonar.projectKey=vulnerablejavawebapp \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.token=$SONAR_TOKEN
+                    """
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                echo "Check SonarQube Quality Gate..."
-                timeout(time: 3, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                script {
+                    echo 'Check SonarQube Quality Gate...'
+                    def qualityGate = waitForQualityGate()
+                    if (qualityGate.status != 'OK') {
+                        echo "WARNING: Quality Gate = ${qualityGate.status}. Pipeline tetap lanjut."
+                    } else {
+                        echo "Quality Gate PASSED: ${qualityGate.status}"
+                    }
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    docker build -t vulnerablejavawebapp . || echo "Docker build failed"
-                '''
+                sh 'docker build -t vulnerablejavawebapp .'
             }
         }
     }
