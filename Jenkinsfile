@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'maven:3.9.6-eclipse-temurin-17'
-            args '-v $HOME/.m2:/root/.m2'
-        }
-    }
+    agent any
 
     environment {
         SONAR_TOKEN = credentials('sonarqube-token')
@@ -19,15 +14,17 @@ pipeline {
 
         stage('Build with Maven + SpotBugs') {
             steps {
-                sh 'mvn clean compile spotbugs:spotbugs'
+                sh '''
+                    mvn clean compile spotbugs:spotbugs
+                '''
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
                 sh '''
-                    pip install trufflehog
-                    trufflehog git https://github.com/yosua789/VulnerableJavaWebApplication.git || true
+                    pip install --user trufflehog
+                    ~/.local/bin/trufflehog git https://github.com/yosua789/VulnerableJavaWebApplication.git || true
                 '''
             }
         }
