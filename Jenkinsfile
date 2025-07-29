@@ -14,14 +14,22 @@ pipeline {
             }
         }
 
-        stage('Compile & SpotBugs') {
+        stage('Install Maven + Compile + SpotBugs') {
             agent {
                 docker {
-                    image 'maven:3.8.7-openjdk-17'
+                    image 'eclipse-temurin:17-jdk'
+                    args '-u root' // supaya bisa apt install
                 }
             }
             steps {
-                sh 'mvn compile spotbugs:spotbugs'
+                sh '''
+                    apt-get update && apt-get install -y maven
+                    mvn -version
+
+                    mvn compile spotbugs:spotbugs
+
+                    ls -lah target
+                '''
                 archiveArtifacts artifacts: 'target/spotbugs*.xml, target/spotbugs*.html', allowEmptyArchive: true
             }
         }
@@ -41,11 +49,15 @@ pipeline {
         stage('SonarQube Analysis') {
             agent {
                 docker {
-                    image 'maven:3.8.7-openjdk-17'
+                    image 'eclipse-temurin:17-jdk'
+                    args '-u root'
                 }
             }
             steps {
                 script {
+                    sh '''
+                        apt-get update && apt-get install -y maven
+                    '''
                     def scannerHome = tool 'SonarScanner'
                     withSonarQubeEnv('SonarQubeServer') {
                         sh """
@@ -80,8 +92,11 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: '**/target/*.jar, **/*.xml, **/*.json', allowEmptyArchive: true
-            cleanWs()
+            agent any
+            steps {
+                archiveArtifacts artifacts: '**/target/*.jar, **/*.xml, **/*.json', allowEmptyArchive: true
+                cleanWs()
+            }
         }
     }
 }
