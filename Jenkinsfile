@@ -4,9 +4,7 @@ pipeline {
     stages {
 
         stage('Maven Compile and SAST (SpotBugs)') {
-            agent {
-                label 'maven'
-            }
+            agent any
             steps {
                 sh 'mvn compile spotbugs:spotbugs'
 
@@ -32,9 +30,7 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            agent {
-                label 'maven'
-            }
+            agent any
             environment {
                 SONAR_TOKEN = credentials('sonarqube-token')
             }
