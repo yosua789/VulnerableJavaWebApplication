@@ -6,56 +6,44 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout Source Code') {
             steps {
-                checkout scm
+                git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
             }
         }
 
-        stage('Install Maven + Compile + SpotBugs') {
+        stage('Build with Maven + SpotBugs') {
+            agent {
+                docker {
+                    image 'maven:3.9.6-eclipse-temurin-17'
+                    args '-v $HOME/.m2:/root/.m2'
+                }
+            }
             steps {
-                sh '''
-                    sudo apt-get update
-                    sudo apt-get install -y maven default-jdk
-                    mvn clean compile spotbugs:spotbugs
-                '''
-                archiveArtifacts artifacts: 'target/spotbugs*.xml, target/spotbugs*.html', allowEmptyArchive: true
+                sh 'mvn clean compile spotbugs:spotbugs'
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
                 sh '''
-                    pip install --user trufflehog || true
-                    ~/.local/bin/trufflehog filesystem . --json > trufflehogscan.json || true
-                    cat trufflehogscan.json
+                    pip install trufflehog
+                    trufflehog git https://github.com/yosua789/VulnerableJavaWebApplication.git || true
                 '''
-                archiveArtifacts artifacts: 'trufflehogscan.json', allowEmptyArchive: true
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                script {
-                    def scannerHome = tool 'SonarScanner'
-                    withSonarQubeEnv('SonarQubeServer') {
-                        sh """
-                            ${scannerHome}/bin/sonar-scanner \
-                            -Dsonar.projectKey=vulnerable-java \
-                            -Dsonar.sources=src \
-                            -Dsonar.java.binaries=target/classes \
-                            -Dsonar.login=$SONAR_TOKEN \
-                            -Dsonar.java.spotbugs.reportPaths=target/spotbugsXml.xml
-                        """
-                    }
+                withSonarQubeEnv('SonarQube') {
+                    sh 'mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN'
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 1, unit: 'MINUTES') {
+                timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
@@ -63,14 +51,14 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t vulnerable-java-application:0.1 .'
+                sh 'docker build -t yosua789/vuln-app .'
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: '**/target/*.jar, **/*.xml, **/*.json', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
             cleanWs()
         }
     }
