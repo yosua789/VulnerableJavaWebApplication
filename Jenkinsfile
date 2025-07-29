@@ -8,7 +8,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/rafaelrpinto/vulnerablejavawebapp.git'
+                git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
             }
         }
 
