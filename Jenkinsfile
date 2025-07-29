@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         SONAR_TOKEN = credentials('sonarqube-token')
-        SONAR_URL = 'http://your-sonarqube-server:9000'
+        SONAR_URL = 'http://localhost:9010'
         PROJECT_KEY = 'VulnerableJavaWebApplication'
     }
 
