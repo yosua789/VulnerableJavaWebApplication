@@ -15,8 +15,9 @@
     </parent>
 
     <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <java.version>1.8</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
     </properties>
 
     <dependencies>
@@ -48,14 +49,13 @@
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.7.3.2</version>
+                <version>4.8.3.0</version>
                 <configuration>
-                    <xmlOutput>true</xmlOutput>
-                    <htmlOutput>false</htmlOutput>
-                    <outputFile>target/spotbugsXml.xml</outputFile>
+                    <effort>Max</effort>
+                    <threshold>Low</threshold>
                     <failOnError>false</failOnError>
-                    <includeFilterFile>spotbugs-security-include.xml</includeFilterFile>
-                    <excludeFilterFile>spotbugs-security-exclude.xml</excludeFilterFile>
+                    <xmlOutput>true</xmlOutput>
+                    <outputFile>${project.build.directory}/spotbugsXml.xml</outputFile>
                     <plugins>
                         <plugin>
                             <groupId>com.h3xstream.findsecbugs</groupId>
@@ -68,17 +68,17 @@
                     <execution>
                         <phase>verify</phase>
                         <goals>
-                            <goal>check</goal>
+                            <goal>spotbugs</goal>
                         </goals>
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
                 <version>3.9.1.2184</version>
             </plugin>
+
 
             <plugin>
                 <groupId>org.springframework.boot</groupId>
@@ -87,4 +87,5 @@
 
         </plugins>
     </build>
+
 </project>
