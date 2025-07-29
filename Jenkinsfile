@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         SONAR_TOKEN = credentials('sonarqube-token')
+        SONAR_HOST_URL = 'http://sonarqube:9000'
     }
 
     stages {
@@ -25,16 +26,13 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            environment {
-                SONAR_HOST_URL = 'http://sonarqube:9000'
-            }
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
                         mvn sonar:sonar \
-                          -Dsonar.projectKey=VulnerableJavaWebApplication \
-                          -Dsonar.host.url=$SONAR_HOST_URL \
-                          -Dsonar.login=$SONAR_TOKEN
+                        -Dsonar.projectKey=VulnerableJavaWebApplication \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_TOKEN
                     '''
                 }
             }
