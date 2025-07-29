@@ -4,10 +4,14 @@ pipeline {
     stages {
 
         stage('Maven Compile and SAST (SpotBugs)') {
-            agent any
+            agent {
+                docker {
+                    image 'maven:3.8.7-openjdk-17'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
             steps {
                 sh 'mvn compile spotbugs:spotbugs'
-
                 archiveArtifacts artifacts: 'target/spotbugs.html', allowEmptyArchive: true
                 archiveArtifacts artifacts: 'target/spotbugsXml.xml', allowEmptyArchive: true
             }
@@ -30,7 +34,11 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            agent any
+            agent {
+                docker {
+                    image 'maven:3.8.7-openjdk-17'
+                }
+            }
             environment {
                 SONAR_TOKEN = credentials('sonarqube-token')
             }
@@ -64,7 +72,7 @@ pipeline {
         stage('Build Docker Image') {
             agent {
                 docker {
-                    image 'docker:dind'
+                    image 'docker:20.10.24-dind'
                     args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
