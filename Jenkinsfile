@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'maven:3.9.6-eclipse-temurin-17'
+            args '-v $HOME/.m2:/root/.m2'
+        }
+    }
 
     environment {
         SONAR_TOKEN = credentials('sonarqube-token')
@@ -13,12 +18,6 @@ pipeline {
         }
 
         stage('Build with Maven + SpotBugs') {
-            agent {
-                docker {
-                    image 'maven:3.9.6-eclipse-temurin-17'
-                    args '-v $HOME/.m2:/root/.m2'
-                }
-            }
             steps {
                 sh 'mvn clean compile spotbugs:spotbugs'
             }
@@ -46,12 +45,6 @@ pipeline {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker build -t yosua789/vuln-app .'
             }
         }
     }
