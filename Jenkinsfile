@@ -3,14 +3,12 @@ pipeline {
 
     environment {
         SONAR_TOKEN = credentials('sonarqube-token')
-        SONAR_URL = 'http://localhost:9010'
-        PROJECT_KEY = 'VulnerableJavaWebApplication'
     }
 
     stages {
         stage('Checkout Source Code') {
             steps {
-                git url: 'https://github.com/yosua789/VulnerableJavaWebApplication.git', branch: 'master'
+                git url: 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
             }
         }
 
@@ -18,21 +16,11 @@ pipeline {
             steps {
                 sh 'mvn clean compile spotbugs:spotbugs'
             }
-            post {
-                always {
-                    archiveArtifacts artifacts: '**/target/spotbugsXml.xml', allowEmptyArchive: true
-                }
-            }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                sh 'trufflehog git https://github.com/yosua789/VulnerableJavaWebApplication.git --json > trufflehog-report.json || true'
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'trufflehog-report.json', allowEmptyArchive: true
-                }
+                sh 'trufflehog filesystem . || true'
             }
         }
 
@@ -41,8 +29,8 @@ pipeline {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         mvn sonar:sonar \
-                        -Dsonar.projectKey=${PROJECT_KEY} \
-                        -Dsonar.host.url=${SONAR_URL} \
+                        -Dsonar.projectKey=VulnerableJavaWebApplication \
+                        -Dsonar.host.url=http://localhost:9010 \
                         -Dsonar.login=${SONAR_TOKEN}
                     """
                 }
@@ -51,7 +39,7 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
+                timeout(time: 1, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
@@ -59,20 +47,20 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t vulnerable-java-app .'
+                sh 'docker build -t vulnerable-app .'
             }
         }
     }
 
     post {
         always {
+            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
             cleanWs()
+            echo 'Pipeline Finished.'
         }
+
         failure {
             echo 'Pipeline Failed. Check logs.'
-        }
-        success {
-            echo 'Pipeline Succeeded!'
         }
     }
 }
