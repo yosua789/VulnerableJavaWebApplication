@@ -30,12 +30,12 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv('SonarQube') {
+                    // JANGAN pakai localhost, pake `sonarqube`
                     sh '''
-                        set -x
                         mvn sonar:sonar \
-                            -Dsonar.projectKey=VulnerableJavaWebApplication \
-                            -Dsonar.host.url=${SONAR_HOST_URL} \
-                            -Dsonar.login=${SONAR_TOKEN}
+                          -Dsonar.projectKey=VulnerableJavaWebApplication \
+                          -Dsonar.host.url=$SONAR_HOST_URL \
+                          -Dsonar.login=$SONAR_TOKEN
                     '''
                 }
             }
