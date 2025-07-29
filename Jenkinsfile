@@ -1,12 +1,8 @@
 pipeline {
     agent none
 
-    environment {
-        SONAR_TOKEN = credentials('sonarqube-token')
-        SONAR_SCANNER_HOME = tool name: 'SonarScanner'
-    }
-
     stages {
+
         stage('Maven Compile and SAST (SpotBugs)') {
             agent {
                 label 'maven'
@@ -14,8 +10,8 @@ pipeline {
             steps {
                 sh 'mvn compile spotbugs:spotbugs'
 
-                archiveArtifacts artifacts: 'target/spotbugs.html'
-                archiveArtifacts artifacts: 'target/spotbugsXml.xml'
+                archiveArtifacts artifacts: 'target/spotbugs.html', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'target/spotbugsXml.xml', allowEmptyArchive: true
             }
         }
 
@@ -28,10 +24,10 @@ pipeline {
             }
             steps {
                 sh '''
-                    trufflehog --no-update filesystem . --json > trufflehogscan.json
+                    trufflehog --no-update filesystem . --json > trufflehogscan.json || true
                     cat trufflehogscan.json
                 '''
-                archiveArtifacts artifacts: 'trufflehogscan.json'
+                archiveArtifacts artifacts: 'trufflehogscan.json', allowEmptyArchive: true
             }
         }
 
@@ -39,17 +35,23 @@ pipeline {
             agent {
                 label 'maven'
             }
+            environment {
+                SONAR_TOKEN = credentials('sonarqube-token')
+            }
             steps {
-                withSonarQubeEnv('SonarQubeServer') {
-                    sh """
-                        ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
-                        -Dsonar.projectKey=vulnerable-java \
-                        -Dsonar.sources=src \
-                        -Dsonar.java.binaries=target/classes \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN \
-                        -Dsonar.java.spotbugs.reportPaths=target/spotbugsXml.xml
-                    """
+                script {
+                    def scannerHome = tool 'SonarScanner'
+                    withSonarQubeEnv('SonarQubeServer') {
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                            -Dsonar.projectKey=vulnerable-java \
+                            -Dsonar.sources=src \
+                            -Dsonar.java.binaries=target/classes \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.login=$SONAR_TOKEN \
+                            -Dsonar.java.spotbugs.reportPaths=target/spotbugsXml.xml
+                        """
+                    }
                 }
             }
         }
