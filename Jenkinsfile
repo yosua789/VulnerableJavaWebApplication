@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('sonarqube-token') // Pastikan ini ada di Jenkins credentials
+        SONAR_TOKEN = credentials('sonarqube-token')
     }
 
     stages {
@@ -14,14 +14,12 @@ pipeline {
 
         stage('Build with Maven + SpotBugs') {
             steps {
-                // Tetap lanjut walau SpotBugs error
                 sh 'mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed, continuing..."'
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                // Gunakan URL Git, bukan local path
                 sh 'trufflehog git https://github.com/yosua789/VulnerableJavaWebApplication.git --json > trufflehogscan.json || echo "TruffleHog failed, continuing..."'
             }
         }
