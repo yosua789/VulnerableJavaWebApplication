@@ -6,7 +6,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout Source Code') {
             agent any
             steps {
@@ -25,7 +24,6 @@ pipeline {
                 sh '''
                     apt-get update && apt-get install -y maven
                     mvn -version
-
                     mvn compile spotbugs:spotbugs
                 '''
                 archiveArtifacts artifacts: 'target/spotbugs*.xml, target/spotbugs*.html', allowEmptyArchive: true
@@ -88,10 +86,8 @@ pipeline {
 
     post {
         always {
-            steps {
-                archiveArtifacts artifacts: '**/target/*.jar, **/*.xml, **/*.json', allowEmptyArchive: true
-                cleanWs()
-            }
+            archiveArtifacts artifacts: '**/target/*.jar, **/*.xml, **/*.json', allowEmptyArchive: true
+            cleanWs()
         }
     }
 }
