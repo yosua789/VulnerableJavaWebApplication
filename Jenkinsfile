@@ -2,54 +2,37 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('sonarqube-token')
+        SONARQUBE_URL = 'http://sonarqube:9000'
     }
 
     stages {
-        stage('Checkout Source Code') {
+        stage('Checkout') {
             steps {
-                git 'https://github.com/yosua789/VulnerableJavaWebApplication.git'
+                git 'https://github.com/rafaelrpinto/vulnerablejavawebapp.git'
             }
         }
 
-        stage('Build with Maven + SpotBugs') {
+        stage('TruffleHog') {
             steps {
-                sh 'mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed, continuing..."'
+                sh 'trufflehog filesystem . || true'
             }
         }
 
-        stage('Secret Scan with TruffleHog') {
-            steps {
-                sh 'trufflehog filesystem --directory . --json > trufflehogscan.json || echo "TruffleHog failed, continuing..."'
-            }
-        }
-
-        stage('SonarQube Analysis') {
+        stage('Build + SonarQube') {
             environment {
-                SONAR_HOST_URL = 'http://sonarqube:9000'
+                MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
             }
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh """
-                        mvn sonar:sonar \
-                        -Dsonar.projectKey=vulnerablejavawebapp \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.token=$SONAR_TOKEN
-                    """
+                    sh 'mvn clean install sonar:sonar'
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                script {
-                    echo 'Check SonarQube Quality Gate...'
-                    def qualityGate = waitForQualityGate()
-                    if (qualityGate.status != 'OK') {
-                        echo "WARNING: Quality Gate = ${qualityGate.status}. Pipeline tetap lanjut."
-                    } else {
-                        echo "Quality Gate PASSED: ${qualityGate.status}"
-                    }
+                timeout(time: 3, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
@@ -64,9 +47,8 @@ pipeline {
     post {
         always {
             echo 'Archive artifacts & clean workspace...'
-            archiveArtifacts artifacts: '**/target/*.jar, **/*.json, **/zapreport.html, **/spotbugs*.xml', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
             cleanWs()
-            echo 'Pipeline Finished.'
         }
         failure {
             echo 'Pipeline Failed. Check logs.'
