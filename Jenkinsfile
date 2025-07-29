@@ -14,17 +14,11 @@ pipeline {
         }
 
         stage('Install Maven + Compile + SpotBugs') {
-            agent {
-                docker {
-                    image 'eclipse-temurin:17-jdk'
-                    args '-u root'
-                }
-            }
             steps {
                 sh '''
-                    apt-get update && apt-get install -y maven
-                    mvn -version
-                    mvn compile spotbugs:spotbugs
+                    sudo apt-get update
+                    sudo apt-get install -y maven default-jdk
+                    mvn clean compile spotbugs:spotbugs
                 '''
                 archiveArtifacts artifacts: 'target/spotbugs*.xml, target/spotbugs*.html', allowEmptyArchive: true
             }
@@ -34,7 +28,7 @@ pipeline {
             steps {
                 sh '''
                     pip install --user trufflehog || true
-                    ~/.local/bin/trufflehog --no-update filesystem . --json > trufflehogscan.json || true
+                    ~/.local/bin/trufflehog filesystem . --json > trufflehogscan.json || true
                     cat trufflehogscan.json
                 '''
                 archiveArtifacts artifacts: 'trufflehogscan.json', allowEmptyArchive: true
@@ -42,15 +36,8 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            agent {
-                docker {
-                    image 'eclipse-temurin:17-jdk'
-                    args '-u root'
-                }
-            }
             steps {
                 script {
-                    sh 'apt-get update && apt-get install -y maven'
                     def scannerHome = tool 'SonarScanner'
                     withSonarQubeEnv('SonarQubeServer') {
                         sh """
