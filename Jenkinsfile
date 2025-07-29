@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('sonarqube-token')
-        SONAR_HOST_URL = 'http://sonarqube:9000'
+        SONAR_TOKEN = credentials('sonarqube-token') // Pastikan ID ini sesuai
     }
 
     stages {
@@ -15,25 +14,30 @@ pipeline {
 
         stage('Build with Maven + SpotBugs') {
             steps {
-                sh 'mvn clean compile spotbugs:spotbugs || true'
+                // Tetap jalan walau SpotBugs error
+                sh 'mvn clean compile spotbugs:spotbugs || echo "SpotBugs failed, continuing..."'
             }
         }
 
         stage('Secret Scan with TruffleHog') {
             steps {
-                sh 'trufflehog git --json . > trufflehogscan.json || true'
+                // Pakai URL Git untuk TruffleHog (bukan filesystem)
+                sh 'trufflehog git https://github.com/yosua789/VulnerableJavaWebApplication.git --json > trufflehogscan.json || echo "TruffleHog failed, continuing..."'
             }
         }
 
         stage('SonarQube Analysis') {
+            environment {
+                SONAR_HOST_URL = 'http://sonarqube:9000'
+            }
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh '''
+                    sh """
                         mvn sonar:sonar \
-                        -Dsonar.projectKey=VulnerableJavaWebApplication \
+                        -Dsonar.projectKey=vulnerablejavawebapp \
                         -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN
-                    '''
+                        -Dsonar.token=$SONAR_TOKEN
+                    """
                 }
             }
         }
