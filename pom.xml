@@ -58,7 +58,6 @@
           </execution>
         </executions>
       </plugin>
-      #plugin for spotbugs scanning repo web apss
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
