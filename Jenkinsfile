@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         SONARQUBE_URL = 'http://sonarqube:9000'
+        MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
     }
 
     stages {
@@ -19,12 +20,15 @@ pipeline {
         }
 
         stage('Build + SonarQube') {
-            environment {
-                MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
-            }
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh 'mvn clean install sonar:sonar'
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    withSonarQubeEnv('SonarQube') {
+                        sh '''
+                            mvn clean install sonar:sonar \
+                                -Dsonar.projectKey=vulnerablejavawebapp \
+                                -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
                 }
             }
         }
