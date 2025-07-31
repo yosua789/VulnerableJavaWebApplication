@@ -19,7 +19,7 @@ pipeline {
         }
 
         stage('Build + SonarQube') {
-            environment {
+            environment {`
                 MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
             }
             steps {
