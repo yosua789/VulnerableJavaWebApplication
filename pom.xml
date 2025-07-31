@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
@@ -16,8 +16,9 @@
   </parent>
 
   <properties>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.release>11</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
@@ -47,24 +48,30 @@
 
   <build>
     <plugins>
+
+      <!-- Spring Boot build plugin -->
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${parent.version}</version>
       </plugin>
 
+      <!-- SpotBugs + FindSecBugs plugin -->
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
         <version>4.7.3.2</version>
         <executions>
           <execution>
+            <phase>verify</phase>
             <goals>
               <goal>spotbugs</goal>
             </goals>
-            <phase>verify</phase>
           </execution>
         </executions>
         <configuration>
+          <includeFilterFile>spotbugs-security-include.xml</includeFilterFile>
+          <excludeFilterFile>spotbugs-security-exclude.xml</excludeFilterFile>
           <failOnError>false</failOnError>
           <xmlOutput>true</xmlOutput>
           <plugins>
@@ -77,11 +84,13 @@
         </configuration>
       </plugin>
 
+      <!-- SonarQube plugin -->
       <plugin>
         <groupId>org.sonarsource.scanner.maven</groupId>
         <artifactId>sonar-maven-plugin</artifactId>
-        <version>3.9.1.2184</version>
+        <version>3.10.0.2594</version>
       </plugin>
+
     </plugins>
   </build>
 </project>
