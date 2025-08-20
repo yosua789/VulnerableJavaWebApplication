@@ -3,7 +3,7 @@ pipeline {
   options { skipDefaultCheckout(true) }
 
   environment {
-    FAIL_ON_ISSUES = 'false'   // ganti 'true' jika mau fail saat ada temuan (DC/Trivy)
+    FAIL_ON_ISSUES = 'false'   // set 'true' kalau mau fail saat scanner return non-zero
   }
 
   stages {
@@ -21,12 +21,14 @@ pipeline {
       }
     }
 
-    stage('SCA - OWASP Dependency-Check') {
+    // ===== SCA: OWASP Dependency-Check (scan repo) =====
+    stage('SCA - Dependency-Check') {
       agent {
         docker {
           image 'owasp/dependency-check:latest'
           reuseNode true
-          args "-v ${WORKSPACE}/.odc:/usr/share/dependency-check/data -v ${WORKSPACE}/.odc-temp:/tmp"
+          // TIDAK ADA -v volume (aman untuk path workspace yang mengandung spasi)
+          // entrypoint default sudah cukup untuk Dependency-Check
         }
       }
       steps {
@@ -35,8 +37,10 @@ pipeline {
             sh '''
               set -e
               mkdir -p dependency-check-report
+              # Update DB (kalau gagal jangan block pipeline)
               /usr/share/dependency-check/bin/dependency-check.sh --updateonly || true
 
+              # Scan seluruh repo; --failOnCVSS 11 = temuan tidak bikin non-zero
               set +e
               /usr/share/dependency-check/bin/dependency-check.sh \
                 --project "VulnerableJavaWebApplication" \
@@ -75,12 +79,14 @@ pipeline {
       }
     }
 
+    // ===== SCA: Trivy filesystem (tanpa Docker image) =====
     stage('SCA - Trivy (filesystem)') {
       agent {
         docker {
           image 'aquasec/trivy:latest'
           reuseNode true
-          args '--entrypoint="" -v ${WORKSPACE}/.trivy-cache:/root/.cache/trivy'
+          args '--entrypoint=""'  // kosongkan entrypoint agar container tetap hidup di Jenkins
+          // TIDAK ADA -v volume (aman untuk path workspace yang mengandung spasi)
         }
       }
       steps {
@@ -91,6 +97,8 @@ pipeline {
               set +e
               trivy fs --no-progress --exit-code 0 \
                 --severity HIGH,CRITICAL . | tee trivy-fs.txt
+
+              # (opsional) SARIF untuk integrasi ke tools lain
               trivy fs --no-progress --exit-code 0 \
                 --severity HIGH,CRITICAL --format sarif -o trivy-fs.sarif .
             ''')
