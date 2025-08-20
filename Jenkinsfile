@@ -3,11 +3,13 @@ pipeline {
   options { skipDefaultCheckout(true) }
 
   environment {
-    FAIL_ON_ISSUES = 'false'
+    // ubah ke 'true' kalau mau build image dan scan image-nya juga
+    BUILD_IMAGE    = 'false'
+    FAIL_ON_ISSUES = 'false'   // set 'true' untuk gagal kalau scanner return non-zero
   }
 
   stages {
-    stage('Clean Workspace') {
+    stage('Clean') {
       steps { cleanWs() }
     }
 
@@ -21,12 +23,13 @@ pipeline {
       }
     }
 
-    // ===== SCA: OWASP Dependency-Check =====
+    // ===== SCA: OWASP Dependency-Check (scan dependency seluruh repo) =====
     stage('SCA - Dependency-Check (repo)') {
       agent {
         docker {
           image 'owasp/dependency-check:latest'
           reuseNode true
+          // cache NVD + temp agar lebih cepat/stabil
           args "-v ${WORKSPACE}/.odc:/usr/share/dependency-check/data -v ${WORKSPACE}/.odc-temp:/tmp"
         }
       }
@@ -36,10 +39,10 @@ pipeline {
             sh '''
               set -e
               mkdir -p dependency-check-report
-
-              # update DB (if fail, keep continue)
+              # update DB (kalau gagal, lanjut saja biar tidak blok)
               /usr/share/dependency-check/bin/dependency-check.sh --updateonly || true
-              
+
+              # scan seluruh repo (otomatis deteksi pom.xml, package.json, requirements.txt, dll)
               set +e
               /usr/share/dependency-check/bin/dependency-check.sh \
                 --project "Testing-Sast" \
@@ -78,12 +81,13 @@ pipeline {
       }
     }
 
-    // ===== SCA: Trivy (scan system container) =====
+    // ===== SCA: Trivy (filesystem) — TANPA build image =====
     stage('SCA - Trivy (filesystem)') {
       agent {
         docker {
           image 'aquasec/trivy:latest'
           reuseNode true
+          // kosongkan entrypoint agar container tetap hidup; cache biar cepat
           args '--entrypoint="" -v ${WORKSPACE}/.trivy-cache:/root/.cache/trivy'
         }
       }
@@ -96,12 +100,13 @@ pipeline {
               trivy fs --no-progress --exit-code 0 \
                 --severity HIGH,CRITICAL . | tee trivy-fs.txt
 
+              # (opsional) hasil SARIF untuk integrasi tooling
               trivy fs --no-progress --exit-code 0 \
                 --severity HIGH,CRITICAL --format sarif -o trivy-fs.sarif .
             ''')
             echo "Trivy FS scan exit code: ${ec}"
             if (env.FAIL_ON_ISSUES == 'true' && ec != 0) {
-              error "Fail build (policy) if Trivy FS exit ${ec}"
+              error "Fail build (policy) karena Trivy FS exit ${ec}"
             }
           }
         }
@@ -109,14 +114,47 @@ pipeline {
       post {
         always {
           script {
-            if (fileExists('trivy-fs.txt')) {
-              archiveArtifacts artifacts: 'trivy-fs.txt', fingerprint: true
-            } else {
-              echo "trivy-fs.txt tidak ditemukan."
-            }
-            if (fileExists('trivy-fs.sarif')) {
-              archiveArtifacts artifacts: 'trivy-fs.sarif', fingerprint: true
-            }
+            if (fileExists('trivy-fs.txt'))   { archiveArtifacts artifacts: 'trivy-fs.txt', fingerprint: true }
+            if (fileExists('trivy-fs.sarif')) { archiveArtifacts artifacts: 'trivy-fs.sarif', fingerprint: true }
+          }
+        }
+      }
+    }
+
+    // ===== OPSIONAL: build & scan Docker image (aktifkan dengan BUILD_IMAGE='true') =====
+    stage('Build Docker Image') {
+      when { expression { return env.BUILD_IMAGE == 'true' } }
+      steps {
+        sh 'docker version'
+        sh 'docker build -t testing-sast:latest .'
+      }
+    }
+
+    stage('SCA - Trivy (image)') {
+      when { expression { return env.BUILD_IMAGE == 'true' } }
+      agent {
+        docker {
+          image 'aquasec/trivy:latest'
+          reuseNode true
+          args '--entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock -v ${WORKSPACE}/.trivy-cache:/root/.cache/trivy'
+        }
+      }
+      steps {
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          script {
+            def ec = sh(returnStatus: true, script: '''
+              set +e
+              trivy image --no-progress --exit-code 0 \
+                --severity HIGH,CRITICAL testing-sast:latest | tee trivy-image.txt
+            ''')
+            echo "Trivy image scan exit code: ${ec}"
+          }
+        }
+      }
+      post {
+        always {
+          script {
+            if (fileExists('trivy-image.txt')) { archiveArtifacts artifacts: 'trivy-image.txt', fingerprint: true }
           }
         }
       }
@@ -125,7 +163,7 @@ pipeline {
 
   post {
     always {
-      echo "Scanning All Done. Result: ${currentBuild.currentResult}"
+      echo "Pipeline selesai. Result: ${currentBuild.currentResult}"
     }
   }
 }
