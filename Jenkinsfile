@@ -16,9 +16,9 @@ pipeline {
     stage('Checkout') {
       steps {
         checkout([$class: 'GitSCM',
-          branches: [[name: '*/main']],
+          branches: [[name: '*/master']],
           extensions: [[$class: 'CloneOption', shallow: false, noTags: false]],
-          userRemoteConfigs: [[url: 'https://github.com/yosua789/Testing-Sast.git']]
+          userRemoteConfigs: [[url: 'https://github.com/yosua789/VulnerableJavaWebApplication.git']]
         ])
       }
     }
