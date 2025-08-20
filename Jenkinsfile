@@ -3,9 +3,7 @@ pipeline {
   options { skipDefaultCheckout(true) }
 
   environment {
-    // ubah ke 'true' kalau mau build image dan scan image-nya juga
-    BUILD_IMAGE    = 'false'
-    FAIL_ON_ISSUES = 'false'   // set 'true' untuk gagal kalau scanner return non-zero
+    FAIL_ON_ISSUES = 'false'   // ganti 'true' jika mau fail saat ada temuan (DC/Trivy)
   }
 
   stages {
@@ -13,7 +11,7 @@ pipeline {
       steps { cleanWs() }
     }
 
-    stage('Checkout') {
+    stage('Checkout (master)') {
       steps {
         checkout([$class: 'GitSCM',
           branches: [[name: '*/master']],
@@ -23,13 +21,11 @@ pipeline {
       }
     }
 
-    // ===== SCA: OWASP Dependency-Check (scan dependency seluruh repo) =====
-    stage('SCA - Dependency-Check (repo)') {
+    stage('SCA - OWASP Dependency-Check') {
       agent {
         docker {
           image 'owasp/dependency-check:latest'
           reuseNode true
-          // cache NVD + temp agar lebih cepat/stabil
           args "-v ${WORKSPACE}/.odc:/usr/share/dependency-check/data -v ${WORKSPACE}/.odc-temp:/tmp"
         }
       }
@@ -39,13 +35,11 @@ pipeline {
             sh '''
               set -e
               mkdir -p dependency-check-report
-              # update DB (kalau gagal, lanjut saja biar tidak blok)
               /usr/share/dependency-check/bin/dependency-check.sh --updateonly || true
 
-              # scan seluruh repo (otomatis deteksi pom.xml, package.json, requirements.txt, dll)
               set +e
               /usr/share/dependency-check/bin/dependency-check.sh \
-                --project "Testing-Sast" \
+                --project "VulnerableJavaWebApplication" \
                 --scan . \
                 --format ALL \
                 --out dependency-check-report \
@@ -81,13 +75,11 @@ pipeline {
       }
     }
 
-    // ===== SCA: Trivy (filesystem) — TANPA build image =====
     stage('SCA - Trivy (filesystem)') {
       agent {
         docker {
           image 'aquasec/trivy:latest'
           reuseNode true
-          // kosongkan entrypoint agar container tetap hidup; cache biar cepat
           args '--entrypoint="" -v ${WORKSPACE}/.trivy-cache:/root/.cache/trivy'
         }
       }
@@ -99,8 +91,6 @@ pipeline {
               set +e
               trivy fs --no-progress --exit-code 0 \
                 --severity HIGH,CRITICAL . | tee trivy-fs.txt
-
-              # (opsional) hasil SARIF untuk integrasi tooling
               trivy fs --no-progress --exit-code 0 \
                 --severity HIGH,CRITICAL --format sarif -o trivy-fs.sarif .
             ''')
@@ -120,50 +110,9 @@ pipeline {
         }
       }
     }
-
-    // ===== OPSIONAL: build & scan Docker image (aktifkan dengan BUILD_IMAGE='true') =====
-    stage('Build Docker Image') {
-      when { expression { return env.BUILD_IMAGE == 'true' } }
-      steps {
-        sh 'docker version'
-        sh 'docker build -t testing-sast:latest .'
-      }
-    }
-
-    stage('SCA - Trivy (image)') {
-      when { expression { return env.BUILD_IMAGE == 'true' } }
-      agent {
-        docker {
-          image 'aquasec/trivy:latest'
-          reuseNode true
-          args '--entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock -v ${WORKSPACE}/.trivy-cache:/root/.cache/trivy'
-        }
-      }
-      steps {
-        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-          script {
-            def ec = sh(returnStatus: true, script: '''
-              set +e
-              trivy image --no-progress --exit-code 0 \
-                --severity HIGH,CRITICAL testing-sast:latest | tee trivy-image.txt
-            ''')
-            echo "Trivy image scan exit code: ${ec}"
-          }
-        }
-      }
-      post {
-        always {
-          script {
-            if (fileExists('trivy-image.txt')) { archiveArtifacts artifacts: 'trivy-image.txt', fingerprint: true }
-          }
-        }
-      }
-    }
   }
 
   post {
-    always {
-      echo "Pipeline selesai. Result: ${currentBuild.currentResult}"
-    }
+    always { echo "Pipeline selesai. Result: ${currentBuild.currentResult}" }
   }
 }
